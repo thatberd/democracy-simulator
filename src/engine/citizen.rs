@@ -29,7 +29,7 @@ impl Citizen {
         }
     }
 
-    pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32, chaos: f32, rng: &mut impl rand::Rng) {
+    pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32, chaos: f32) {
         // Store previous value for change tracking
         self.previous_ideology = self.ideology;
         
@@ -44,25 +44,16 @@ impl Citizen {
         let ideology_diff = local_avg_ideology - self.ideology;
         let nonlinear_diff = ideology_diff.tanh() * 0.5; // Saturates at extreme differences
         
-        // IDEOLOGICAL REPULSION: Push away from local average if too far (strengthened)
+        // IDEOLOGICAL REPULSION: Push away from local average if too far
         let distance = (self.ideology - local_avg_ideology).abs();
-        let repulsion_effect = if distance > 0.4 {
-            // Push further away when very different from neighbors - strengthened from 0.05 to 0.1
-            (self.ideology - local_avg_ideology) * 0.1
+        let repulsion_effect = if distance > 0.5 {
+            // Push further away when very different from neighbors
+            (self.ideology - local_avg_ideology) * 0.05
         } else {
             0.0
         };
         
         self.ideology += nonlinear_diff * influence_strength + noise + repulsion_effect + chaos;
-        
-        // RADICALIZATION UNDER LOW TRUST: Make trust strongly affect behavior
-        if self.trust_in_government < 0.3 {
-            self.ideology *= 1.05; // Amplify ideology under low trust
-            // Add small randomness under low trust
-            let random_shift = rng.gen_range(-0.05..0.05);
-            self.ideology += random_shift;
-        }
-        
         self.ideology = self.ideology.clamp(-1.0, 1.0);
         
         // Update radicalization based on extremeness and social conditions

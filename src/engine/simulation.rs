@@ -71,10 +71,10 @@ impl Simulation {
                 0.0
             };
             
-            citizen.update_ideology_local(local_averages[i], noise, chaos, &mut self.state.rng);
+            citizen.update_ideology_local(local_averages[i], noise, chaos);
         }
 
-        // Add lightweight pairwise citizen interactions with similarity-based influence
+        // Add lightweight pairwise citizen interactions
         let interaction_count = (self.state.citizens.len() / 2).max(10); // population size / 2, min 10
         for _ in 0..interaction_count {
             let a_idx = self.state.rng.gen_range(0..self.state.citizens.len());
@@ -85,10 +85,8 @@ impl Simulation {
                 let a_ideology = self.state.citizens[a_idx].ideology;
                 let b_ideology = self.state.citizens[b_idx].ideology;
                 
-                // Calculate similarity-based influence - increased from 0.02 to 0.03
-                let similarity = 1.0 - (a_ideology - b_ideology).abs();
-                let influence = 0.03 * similarity;
-                
+                // Apply lightweight interaction (0.01 influence as specified)
+                let influence = 0.01;
                 self.state.citizens[a_idx].ideology += (b_ideology - a_ideology) * influence;
                 self.state.citizens[b_idx].ideology += (a_ideology - b_ideology) * influence;
                 
