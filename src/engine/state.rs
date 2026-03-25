@@ -103,6 +103,14 @@ impl State {
         }
     }
 
+    pub fn get_average_radicalization(&self) -> f32 {
+        if self.citizens.is_empty() {
+            0.0
+        } else {
+            self.citizens.iter().map(|c| c.radicalization).sum::<f32>() / self.citizens.len() as f32
+        }
+    }
+
     pub fn get_ideology_distribution(&self) -> [usize; 10] {
         let mut distribution = [0; 10];
         for citizen in &self.citizens {
