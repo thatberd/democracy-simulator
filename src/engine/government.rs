@@ -41,8 +41,8 @@ impl Government {
         for &idx in &voter_indices {
             let base_vote = citizen_ideologies[idx];
             
-            // Add individual noise
-            let noise = rng.gen_range(-0.1..0.1);
+            // Add individual noise - increased from ±0.1 to ±0.15 for more imperfection
+            let noise = rng.gen_range(-0.15..0.15);
             
             // Bias based on extremeness (extremists more likely to vote)
             let extremeness_bonus = base_vote.abs() * 0.05;
@@ -62,8 +62,8 @@ impl Government {
             (votes[votes.len() / 2 - 1] + votes[votes.len() / 2]) / 2.0
         };
         
-        // Add final systemic noise (media influence, etc.)
-        let systemic_noise = rng.gen_range(-0.05..0.05);
+        // Add final systemic noise (media influence, etc.) - increased from ±0.05 to ±0.1
+        let systemic_noise = rng.gen_range(-0.1..0.1);
         let final_ideology = (new_ideology + systemic_noise).clamp(-1.0, 1.0);
         
         self.current_ideology = final_ideology;
