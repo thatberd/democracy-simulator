@@ -91,8 +91,9 @@ Every simulation tick (100ms real-time):
 1. **Local Citizen Interactions**:
    - Each citizen samples 3-8 random neighbors
    - Ideology influenced by local average, not global
-   - Nonlinear effects based on trust and happiness
-   - 5% of population engages in pairwise interactions
+   - **Ideological Repulsion**: Citizens >0.5 apart push further away, creating polarization
+   - **Trust-Based Instability**: Low trust (<0.2) causes chaotic ideological shifts
+   - 50% of population engages in lightweight pairwise interactions (0.01 influence)
 
 2. **Social Dynamics**:
    - Happiness affected by economy with threshold effects
@@ -121,14 +122,15 @@ Every simulation tick (100ms real-time):
 
 The simulation produces complex emergent behaviors from simple rules:
 
-- **Political Polarization**: Local interactions create ideological clusters and echo chambers
-- **Faction Formation**: Citizens naturally group by ideology proximity
-- **Tipping Points**: Threshold effects cause sudden societal shifts
-- **Social Unrest**: Protests and cascading instability during crises
+- **Political Polarization**: Ideological repulsion creates distinct clusters and echo chambers
+- **Faction Formation**: Citizens naturally group by ideology proximity through repulsion dynamics
+- **Tipping Points**: Threshold effects cause sudden societal shifts and regime instability
+- **Social Unrest**: Low trust amplifies chaos, creating unpredictable ideological swings
 - **Economic Cascades**: Lag effects amplify booms and busts
 - **Unexpected Elections**: Turnout and noise create surprising outcomes
 - **Radicalization Cycles**: Feedback loops between trust and extremism
 - **Stable vs Chaotic Societies**: Different seeds produce varying societal outcomes
+- **Emergent Clustering**: Local interactions + repulsion become multi-peak ideology distributions (`█   █` vs ` █ `)
 
 ### Complex Adaptive System Properties
 

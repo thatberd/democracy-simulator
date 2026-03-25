@@ -29,7 +29,7 @@ impl Citizen {
         }
     }
 
-    pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32) {
+    pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32, chaos: f32) {
         // Store previous value for change tracking
         self.previous_ideology = self.ideology;
         
@@ -44,7 +44,16 @@ impl Citizen {
         let ideology_diff = local_avg_ideology - self.ideology;
         let nonlinear_diff = ideology_diff.tanh() * 0.5; // Saturates at extreme differences
         
-        self.ideology += nonlinear_diff * influence_strength + noise;
+        // IDEOLOGICAL REPULSION: Push away from local average if too far
+        let distance = (self.ideology - local_avg_ideology).abs();
+        let repulsion_effect = if distance > 0.5 {
+            // Push further away when very different from neighbors
+            (self.ideology - local_avg_ideology) * 0.05
+        } else {
+            0.0
+        };
+        
+        self.ideology += nonlinear_diff * influence_strength + noise + repulsion_effect + chaos;
         self.ideology = self.ideology.clamp(-1.0, 1.0);
         
         // Update radicalization based on extremeness and social conditions

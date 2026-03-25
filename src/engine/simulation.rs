@@ -1,5 +1,4 @@
 use crate::engine::State;
-use crate::engine::Citizen;
 use rand::Rng;
 
 pub struct Simulation {
@@ -64,51 +63,36 @@ impl Simulation {
         // Apply the updates
         for (i, citizen) in &mut self.state.citizens.iter_mut().enumerate() {
             let noise: f32 = self.state.rng.gen_range(-0.01..0.01);
-            citizen.update_ideology_local(local_averages[i], noise);
+            
+            // INSTABILITY WHEN TRUST IS LOW: Add chaos for low-trust citizens
+            let chaos = if citizen.trust_in_government < 0.2 {
+                self.state.rng.gen_range(-0.05..0.05) * (1.0 - citizen.trust_in_government)
+            } else {
+                0.0
+            };
+            
+            citizen.update_ideology_local(local_averages[i], noise, chaos);
         }
 
-        // Add pairwise citizen interactions
-        let interaction_count = (self.state.citizens.len() / 20).max(10); // 5% of population, min 10
+        // Add lightweight pairwise citizen interactions
+        let interaction_count = (self.state.citizens.len() / 2).max(10); // population size / 2, min 10
         for _ in 0..interaction_count {
             let a_idx = self.state.rng.gen_range(0..self.state.citizens.len());
             let b_idx = self.state.rng.gen_range(0..self.state.citizens.len());
             
             if a_idx != b_idx {
-                // Store ideologies before interaction to avoid borrowing issues
+                // Store current ideologies before interaction
                 let a_ideology = self.state.citizens[a_idx].ideology;
                 let b_ideology = self.state.citizens[b_idx].ideology;
                 
-                // Create temporary citizens for interaction calculation
-                let temp_a = Citizen {
-                    ideology: a_ideology,
-                    happiness: self.state.citizens[a_idx].happiness,
-                    trust_in_government: self.state.citizens[a_idx].trust_in_government,
-                    radicalization: self.state.citizens[a_idx].radicalization,
-                    previous_ideology: self.state.citizens[a_idx].previous_ideology,
-                    previous_happiness: self.state.citizens[a_idx].previous_happiness,
-                    previous_trust: self.state.citizens[a_idx].previous_trust,
-                };
+                // Apply lightweight interaction (0.01 influence as specified)
+                let influence = 0.01;
+                self.state.citizens[a_idx].ideology += (b_ideology - a_ideology) * influence;
+                self.state.citizens[b_idx].ideology += (a_ideology - b_ideology) * influence;
                 
-                let temp_b = Citizen {
-                    ideology: b_ideology,
-                    happiness: self.state.citizens[b_idx].happiness,
-                    trust_in_government: self.state.citizens[b_idx].trust_in_government,
-                    radicalization: self.state.citizens[b_idx].radicalization,
-                    previous_ideology: self.state.citizens[b_idx].previous_ideology,
-                    previous_happiness: self.state.citizens[b_idx].previous_happiness,
-                    previous_trust: self.state.citizens[b_idx].previous_trust,
-                };
-                
-                // Apply interactions
-                let mut a_copy = temp_a.clone();
-                let mut b_copy = temp_b.clone();
-                
-                a_copy.interact_with(&temp_b);
-                b_copy.interact_with(&temp_a);
-                
-                // Update the actual citizens
-                self.state.citizens[a_idx].ideology = a_copy.ideology.clamp(-1.0, 1.0);
-                self.state.citizens[b_idx].ideology = b_copy.ideology.clamp(-1.0, 1.0);
+                // Clamp to valid range
+                self.state.citizens[a_idx].ideology = self.state.citizens[a_idx].ideology.clamp(-1.0, 1.0);
+                self.state.citizens[b_idx].ideology = self.state.citizens[b_idx].ideology.clamp(-1.0, 1.0);
             }
         }
 
