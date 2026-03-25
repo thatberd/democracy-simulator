@@ -7,7 +7,9 @@ A terminal-based autonomous democracy simulator built in Rust. The simulation ru
 - **Deterministic Simulation**: Same seed always produces identical results
 - **Autonomous Operation**: No player input required after initialization
 - **Real-time TUI**: Terminal-based interface with live statistics
-- **Emergent Behavior**: Political polarization, economic cycles, and opinion shifts
+- **Complex Adaptive System**: Emergent polarization, clustering, tipping points, and social unrest
+- **Local Interactions**: Citizens influence neighbors, not global averages
+- **Nonlinear Dynamics**: Threshold effects, feedback loops, and cascading failures
 
 ## Technical Details
 
@@ -15,6 +17,7 @@ A terminal-based autonomous democracy simulator built in Rust. The simulation ru
 - **UI Framework**: ratatui + crossterm
 - **Randomness**: Seeded RNG for reproducibility
 - **Architecture**: Clean separation between simulation engine and UI
+- **Complexity**: O(n) performance with ~1000 citizens efficiently
 
 ## Installation
 
@@ -59,16 +62,20 @@ cargo run -- [SEED]
 
 ### Citizens
 
-Each citizen has three core attributes:
+Each citizen has five core attributes:
 - **Ideology**: -1.0 (far left) to 1.0 (far right)
 - **Happiness**: 0.0 to 1.0
 - **Trust in Government**: 0.0 to 1.0
+- **Radicalization**: 0.0 to 1.0 (how extreme/committed to ideology)
+- **Previous Values**: Track changes for lag effects and dynamics
 
 ### Economy
 
-- **GDP**: Economic output
+- **GDP**: Economic output with growth trend tracking
 - **Unemployment**: 0.0 to 1.0 (0% to 100%)
 - **Inequality**: 0.0 to 1.0 (0% to 100%)
+- **Previous Values**: Lag effects for momentum and cascading changes
+- **Growth Trend**: Economic momentum (positive/negative)
 
 ### Government
 
@@ -81,28 +88,57 @@ Each citizen has three core attributes:
 
 Every simulation tick (100ms real-time):
 
-1. **Citizen Updates**:
-   - Ideology drifts toward global average with random noise
-   - Happiness affected by economy and political alignment
-   - Trust changes based on happiness and economic trends
+1. **Local Citizen Interactions**:
+   - Each citizen samples 3-8 random neighbors
+   - Ideology influenced by local average, not global
+   - **Ideological Repulsion**: Citizens >0.5 apart push further away, creating polarization
+   - **Trust-Based Instability**: Low trust (<0.2) causes chaotic ideological shifts
+   - 50% of population engages in lightweight pairwise interactions (0.01 influence)
 
-2. **Economic Updates**:
-   - Small random drift
-   - Influenced by government ideology
-   - Random events (crises, booms)
+2. **Social Dynamics**:
+   - Happiness affected by economy with threshold effects
+   - Trust changes with nonlinear amplification during crises
+   - Radicalization increases with extremeness and low trust
+   - Feedback loops between all metrics
 
-3. **Elections**:
+3. **Economic Updates**:
+   - Lag effects with previous values tracking
+   - Growth trend momentum
+   - Crisis amplification multipliers
+   - Nonlinear saturation using sigmoid functions
+
+4. **Imperfect Elections**:
+   - 60-90% voter turnout simulation
+   - Individual noise and extremist bias
+   - Systemic noise for media influence
    - Occur every 50 ticks
-   - Citizens vote based on ideology proximity
-   - Government ideology becomes median of citizen ideologies
+
+5. **Social Events**:
+   - Protests when trust < 0.3 AND radicalization > 0.5
+   - Social harmony during positive conditions
+   - Economic crises and booms with cascading effects
 
 ### Emergent Behaviors
 
-The simulation produces complex emergent behaviors:
-- **Political Polarization**: Ideologies can cluster at extremes
-- **Economic Cycles**: Boom and bust patterns
-- **Stability vs Instability**: Periods of calm vs rapid change
-- **Opinion Shifts**: Gradual or sudden changes in public sentiment
+The simulation produces complex emergent behaviors from simple rules:
+
+- **Political Polarization**: Ideological repulsion creates distinct clusters and echo chambers
+- **Faction Formation**: Citizens naturally group by ideology proximity through repulsion dynamics
+- **Tipping Points**: Threshold effects cause sudden societal shifts and regime instability
+- **Social Unrest**: Low trust amplifies chaos, creating unpredictable ideological swings
+- **Economic Cascades**: Lag effects amplify booms and busts
+- **Unexpected Elections**: Turnout and noise create surprising outcomes
+- **Radicalization Cycles**: Feedback loops between trust and extremism
+- **Stable vs Chaotic Societies**: Different seeds produce varying societal outcomes
+- **Emergent Clustering**: Local interactions + repulsion become multi-peak ideology distributions (`█   █` vs ` █ `)
+
+### Complex Adaptive System Properties
+
+- **Self-Organization**: Citizens form clusters without central control
+- **Nonlinearity**: Small changes can cause large effects
+- **Emergence**: System-level patterns from local interactions
+- **Adaptation**: Society responds to economic and political stress
+- **Path Dependence**: History influences future through lag effects
 
 ## Determinism
 
@@ -156,10 +192,40 @@ cargo test
 
 ## Performance
 
-- Simulates 500-2000 citizens
+- Simulates 500-2000 citizens efficiently
 - Runs at 10 FPS (100ms per tick)
-- Minimal CPU usage
+- O(n) complexity with local sampling (no O(n²) pairwise operations)
+- Minimal CPU usage with optimized interactions
 - Memory efficient (~few MB)
+- Supports complex adaptive system dynamics at scale
+
+## Complex Adaptive System Design
+
+### Core Principles
+
+The simulation follows complex adaptive system principles:
+
+- **Simple Rules → Complex Outcomes**: Individual citizen interactions create societal-level patterns
+- **Local Interactions**: Citizens influence neighbors, not global averages
+- **Nonlinear Dynamics**: Threshold effects and feedback loops create tipping points
+- **Deterministic Chaos**: Same seed produces identical but unpredictable-looking behavior
+- **Emergent Factions**: No hardcoded factions - they emerge from ideology proximity
+
+### Key Mechanisms
+
+1. **Local Sampling**: Each citizen samples 3-8 neighbors per tick
+2. **Distance-Based Influence**: Ideological proximity determines interaction strength
+3. **Threshold Effects**: Crises amplify changes, low trust creates distrust cascades
+4. **Lag Effects**: Previous values influence current changes (momentum)
+5. **Imperfect Information**: Elections have noise and turnout variation
+
+### Expected Societal Outcomes
+
+Different seeds produce varying societal patterns:
+- **Stable Democracies**: Balanced trust, moderate polarization
+- **Polarized Societies**: High faction clustering, election volatility
+- **Chaotic Collapse**: Low trust, high radicalization, frequent protests
+- **Economic Boom/Bust Cycles**: Lag effects create momentum and crashes
 
 ## License
 

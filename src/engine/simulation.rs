@@ -14,6 +14,33 @@ impl Simulation {
         }
     }
 
+    fn compute_local_ideology(&mut self, citizen_idx: usize, sample_size: usize) -> f32 {
+        if self.state.citizens.len() <= 1 {
+            return 0.0;
+        }
+        
+        let mut sum = 0.0;
+        let mut count = 0;
+        
+        for _ in 0..sample_size {
+            let sample_idx = loop {
+                let idx = self.state.rng.gen_range(0..self.state.citizens.len());
+                if idx != citizen_idx {
+                    break idx;
+                }
+            };
+            
+            sum += self.state.citizens[sample_idx].ideology;
+            count += 1;
+        }
+        
+        if count > 0 {
+            sum / count as f32
+        } else {
+            0.0
+        }
+    }
+
     pub fn tick(&mut self) {
         if self.paused {
             return;
@@ -22,11 +49,53 @@ impl Simulation {
         let prev_avg_happiness = self.state.get_average_happiness();
         let prev_gdp = self.state.economy.gdp;
 
-        // Update citizen ideologies
-        let global_avg_ideology = self.state.get_average_ideology();
-        for citizen in &mut self.state.citizens {
+        // Update citizen ideologies using local interactions
+        let citizen_count = self.state.citizens.len();
+        let mut local_averages = Vec::with_capacity(citizen_count);
+        
+        // Pre-compute local averages for all citizens
+        for i in 0..citizen_count {
+            let sample_size = self.state.rng.gen_range(3..=8);
+            let local_avg = self.compute_local_ideology(i, sample_size);
+            local_averages.push(local_avg);
+        }
+        
+        // Apply the updates
+        for (i, citizen) in &mut self.state.citizens.iter_mut().enumerate() {
             let noise: f32 = self.state.rng.gen_range(-0.01..0.01);
-            citizen.update_ideology(global_avg_ideology, noise);
+            
+            // INSTABILITY WHEN TRUST IS LOW: Add chaos for low-trust citizens
+            let chaos = if citizen.trust_in_government < 0.2 {
+                self.state.rng.gen_range(-0.05..0.05) * (1.0 - citizen.trust_in_government)
+            } else {
+                0.0
+            };
+            
+            citizen.update_ideology_local(local_averages[i], noise, chaos, &mut self.state.rng);
+        }
+
+        // Add lightweight pairwise citizen interactions with similarity-based influence
+        let interaction_count = (self.state.citizens.len() / 2).max(10); // population size / 2, min 10
+        for _ in 0..interaction_count {
+            let a_idx = self.state.rng.gen_range(0..self.state.citizens.len());
+            let b_idx = self.state.rng.gen_range(0..self.state.citizens.len());
+            
+            if a_idx != b_idx {
+                // Store current ideologies before interaction
+                let a_ideology = self.state.citizens[a_idx].ideology;
+                let b_ideology = self.state.citizens[b_idx].ideology;
+                
+                // Calculate similarity-based influence - increased from 0.02 to 0.03
+                let similarity = 1.0 - (a_ideology - b_ideology).abs();
+                let influence = 0.03 * similarity;
+                
+                self.state.citizens[a_idx].ideology += (b_ideology - a_ideology) * influence;
+                self.state.citizens[b_idx].ideology += (a_ideology - b_ideology) * influence;
+                
+                // Clamp to valid range
+                self.state.citizens[a_idx].ideology = self.state.citizens[a_idx].ideology.clamp(-1.0, 1.0);
+                self.state.citizens[b_idx].ideology = self.state.citizens[b_idx].ideology.clamp(-1.0, 1.0);
+            }
         }
 
         // Update citizen happiness
@@ -69,6 +138,40 @@ impl Simulation {
             self.state.economy.trigger_boom();
             self.state.add_event(format!("Tick {}: Economic boom!", self.state.tick));
         }
+        
+        // Check for social unrest events based on system conditions
+        let avg_trust = self.state.get_average_trust();
+        let avg_radicalization = self.state.get_average_radicalization();
+        
+        // Protests when trust is low and radicalization is high
+        if avg_trust < 0.3 && avg_radicalization > 0.5 && self.state.rng.gen::<f32>() < 0.02 {
+            self.state.add_event(format!(
+                "Tick {}: Mass protests erupt! Trust: {:.2}, Radicalization: {:.2}", 
+                self.state.tick, avg_trust, avg_radicalization
+            ));
+            
+            // Protests affect citizen psychology
+            for citizen in &mut self.state.citizens {
+                if citizen.radicalization > 0.6 {
+                    citizen.trust_in_government *= 0.8; // Further reduce trust
+                    citizen.radicalization = (citizen.radicalization * 1.1).min(1.0); // Increase radicalization
+                }
+            }
+        }
+        
+        // Social cohesion events when conditions are good
+        if avg_trust > 0.7 && avg_radicalization < 0.3 && self.state.rng.gen::<f32>() < 0.01 {
+            self.state.add_event(format!(
+                "Tick {}: Period of social harmony! Trust: {:.2}, Radicalization: {:.2}", 
+                self.state.tick, avg_trust, avg_radicalization
+            ));
+            
+            // Harmony reduces polarization
+            for citizen in &mut self.state.citizens {
+                citizen.radicalization *= 0.9;
+                citizen.trust_in_government = (citizen.trust_in_government * 1.05).min(1.0);
+            }
+        }
     }
 
     fn hold_election(&mut self) {
@@ -77,7 +180,7 @@ impl Simulation {
             .collect();
         
         let old_ideology = self.state.government.current_ideology;
-        let new_ideology = self.state.government.hold_election(&citizen_ideologies);
+        let new_ideology = self.state.government.hold_election(&citizen_ideologies, &mut self.state.rng);
         
         let direction = if new_ideology > old_ideology {
             "right"
