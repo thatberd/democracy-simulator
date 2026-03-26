@@ -66,12 +66,25 @@ impl Simulation {
             
             // INSTABILITY WHEN TRUST IS LOW: Add chaos for low-trust citizens
             let chaos = if citizen.trust_in_government < 0.2 {
-                self.state.rng.gen_range(-0.05..0.05) * (1.0 - citizen.trust_in_government)
+                let polarization_factor = if citizen.trust_in_government < 0.2 { 1.5 } else { 1.0 };
+                self.state.rng.gen_range(-0.05..0.05) * (1.0 - citizen.trust_in_government) * polarization_factor
             } else {
                 0.0
             };
             
-            citizen.update_ideology_local(local_averages[i], noise, chaos);
+            // IDEOLOGICAL DRIFT UNDER LOW HAPPINESS: misery creates ideological movement
+            let happiness_drift = if citizen.happiness < 0.2 {
+                let drift_strength = (0.2 - citizen.happiness) * 0.25; // Scale drift based on how low happiness is
+                if self.state.rng.gen::<f32>() < 0.3 { // 30% chance per tick when very unhappy
+                    self.state.rng.gen_range(-drift_strength..drift_strength)
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+            
+            citizen.update_ideology_local(local_averages[i], noise, chaos, happiness_drift);
         }
 
         // Add echo chamber citizen interactions
@@ -101,6 +114,15 @@ impl Simulation {
         let gdp_change = self.state.economy.gdp - prev_gdp;
         for citizen in &mut self.state.citizens {
             citizen.update_trust(avg_happiness_change, gdp_change);
+            
+            // Apply ongoing reform effects
+            if self.state.reform_active {
+                let trust_boost = 0.005 * self.state.reform_strength; // Ongoing trust recovery
+                let happiness_boost = 0.003 * self.state.reform_strength; // Ongoing happiness recovery
+                citizen.trust_in_government = (citizen.trust_in_government + trust_boost).min(1.0);
+                citizen.happiness = (citizen.happiness + happiness_boost).min(1.0);
+                citizen.radicalization *= 1.0 - 0.01 * self.state.reform_strength; // Gradual deradicalization
+            }
         }
 
         // Update citizen memory for trend-based behavior
@@ -115,7 +137,13 @@ impl Simulation {
 
         // Apply natural stabilization drift to prevent permanent deadlock
         for citizen in &mut self.state.citizens {
-            citizen.apply_natural_stabilization_drift();
+            // PREVENT PERMANENT CENTER LOCK: Add weak long-term drift
+            let center_drift = if self.state.rng.gen::<f32>() < 0.1 { // 10% chance per tick
+                self.state.rng.gen_range(-0.01..0.01) // Weak drift to avoid perfect equilibrium
+            } else {
+                0.0
+            };
+            citizen.apply_natural_stabilization_drift(center_drift);
         }
 
         // Update economy with policy lag
@@ -125,6 +153,9 @@ impl Simulation {
 
         // Random events
         self.handle_random_events();
+
+        // Update reform state
+        self.state.update_reform();
 
         // Check for elections
         if self.state.government.is_election_due() {
@@ -141,8 +172,17 @@ impl Simulation {
     fn handle_random_events(&mut self) {
         let event_chance: f32 = self.state.rng.gen();
         
+        // INSTABILITY PRESSURE: Calculate system instability to increase event probability
+        let avg_trust = self.state.get_average_trust();
+        let avg_happiness = self.state.get_average_happiness();
+        let instability = (1.0 - avg_trust) + (1.0 - avg_happiness); // 0.0 to 2.0
+        let instability_multiplier = 1.0 + instability * 0.5; // 1.0 to 2.0 multiplier
+        
+        // Apply instability to event chances
+        let adjusted_event_chance = event_chance * instability_multiplier;
+        
         // Economic crisis events with narrative context and cooldowns
-        if event_chance < 0.005 && !self.state.is_event_on_cooldown("crisis", 30) { // 0.5% chance per tick, 30 tick cooldown
+        if adjusted_event_chance < 0.005 && !self.state.is_event_on_cooldown("crisis", 30) { // 0.5% chance per tick, 30 tick cooldown
             let gdp_trend = self.state.economy.gdp - self.state.economy.previous_gdp;
             let reason = if gdp_trend < -0.05 {
                 "triggered by sharp GDP decline"
@@ -160,7 +200,7 @@ impl Simulation {
                 "Tick {}: Economic crisis struck {}! GDP: {:.2}, Unemployment: {:.2}", 
                 self.state.tick, reason, self.state.economy.gdp, self.state.economy.unemployment
             ));
-        } else if event_chance < 0.01 && !self.state.is_event_on_cooldown("crisis", 30) { // Additional 0.5% chance
+        } else if adjusted_event_chance < 0.01 && !self.state.is_event_on_cooldown("crisis", 30) { // Additional 0.5% chance
             let reason = if self.state.economy.gdp > 1.2 {
                 "driven by strong growth"
             } else if self.state.economy.unemployment < 0.1 {
@@ -220,6 +260,40 @@ impl Simulation {
             self.state.update_protest_history(false);
         }
         
+        // LATENT UNREST TRIGGER: Even without polarization, bad conditions should trigger events
+        if avg_happiness < 0.1 && avg_trust < 0.1 && !self.state.is_event_on_cooldown("protest", 15) {
+            let latent_unrest_chance = 0.05; // 5% chance per tick when conditions are catastrophic
+            
+            if self.state.rng.gen::<f32>() < latent_unrest_chance {
+                self.state.add_event(format!(
+                    "Tick {}: Spontaneous uprising from catastrophic conditions! Trust: {:.3}, Happiness: {:.3}", 
+                    self.state.tick, avg_trust, avg_happiness
+                ));
+                
+                // Update protest tracking
+                self.state.last_protest_tick = self.state.tick;
+                self.state.update_protest_history(true);
+                
+                // Severe unrest effects - affects all citizens
+                for citizen in &mut self.state.citizens {
+                    citizen.trust_in_government *= 0.7; // Major trust reduction
+                    citizen.happiness *= 0.8; // Happiness drops further
+                    citizen.radicalization = (citizen.radicalization * 1.2).min(1.0); // Increase radicalization
+                    
+                    // Push ideologies toward extremes randomly
+                    if self.state.rng.gen::<f32>() < 0.5 {
+                        citizen.ideology = (citizen.ideology * 1.1).min(1.0);
+                    } else {
+                        citizen.ideology = (citizen.ideology * 1.1).max(-1.0);
+                    }
+                }
+            } else {
+                self.state.update_protest_history(false);
+            }
+        } else {
+            self.state.update_protest_history(false);
+        }
+        
         // Reform / Recovery events with cooldowns
         let reform_conditions = (avg_trust < 0.2 && (avg_radicalization > 0.6 || self.state.economy.inequality > 0.7)) 
             || (self.state.economy.inequality > 0.6 && self.state.rng.gen::<f32>() < 0.01);
@@ -240,13 +314,16 @@ impl Simulation {
                 self.state.tick, reform_context
             ));
             
-            // Update reform tracking
+            // Update reform tracking - start persistent reform
             self.state.last_reform_tick = self.state.tick;
+            self.state.start_reform(30, 2.0); // 30 ticks duration, 2x strength multiplier
             
-            // Reform effects
+            // Initial reform effects
             for citizen in &mut self.state.citizens {
-                citizen.trust_in_government = (citizen.trust_in_government + 0.2).min(1.0);
-                citizen.happiness = (citizen.happiness + 0.1).min(1.0);
+                let trust_gain = 0.2 * self.state.reform_strength;
+                let happiness_gain = 0.1 * self.state.reform_strength;
+                citizen.trust_in_government = (citizen.trust_in_government + trust_gain).min(1.0);
+                citizen.happiness = (citizen.happiness + happiness_gain).min(1.0);
                 citizen.radicalization *= 0.8;
             }
             

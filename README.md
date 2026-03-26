@@ -16,6 +16,10 @@ A terminal-based autonomous democracy simulator built in Rust. The simulation ru
 - **Echo Chambers**: Similar groups reinforce internally, opposing groups stop blending
 - **Policy Lag**: Government decisions have delayed economic effects (10 ticks)
 - **Natural Stabilization**: Very slow recovery prevents permanent deadlock
+- **Dynamic Instability System**: Bad conditions create pressure for change
+- **Anti-Equilibrium Mechanisms**: Multiple systems prevent permanent static states
+- **Persistent Reform Effects**: 30-tick reform duration with gradual decay
+- **Instability Pressure**: Event probabilities scale with system health (1.0-2.0x)
 
 ## Technical Details
 
@@ -102,17 +106,20 @@ Every simulation tick (100ms real-time):
    - Each citizen samples 3-8 random neighbors
    - Ideology influenced by local average, not global
    - **Ideological Repulsion**: Citizens >0.5 apart push further away, creating polarization
-   - **Trust-Based Instability**: Low trust (<0.2) causes chaotic ideological shifts
+   - **Trust-Based Instability**: Low trust (<0.2) causes chaotic ideological shifts with 1.5x polarization factor
+   - **Happiness-Driven Drift**: Unhappy citizens (happiness < 0.2) experience ideological movement (30% chance per tick)
    - **Echo Chambers**: Similar groups (similarity >0.7) get 2x reinforcement, opposing groups (similarity <0.3) get 0.2x influence
+   - **Weak Long-Term Evolution**: 10% chance per tick of ±0.01 ideological drift to prevent permanent center lock
    - 50% of population engages in pairwise interactions
 
 2. **Social Dynamics**:
-   - Happiness affected by economy with threshold effects
+   - Happiness affected by economy with stronger feedback loops
    - Trust changes with memory-based trend amplification
    - Radicalization increases with extremeness and low trust
    - **Memory Updates**: Citizens store past values for trend-based behavior
    - **Natural Stabilization**: Very slow drift (+0.001) prevents permanent deadlock
    - **Inequality-Driven Polarization**: High inequality (>0.7) pushes citizens toward extremes
+   - **Economic-Happiness Coupling**: Stronger unemployment (-0.8), inequality (-0.5), and GDP (0.3) impacts
 
 3. **Economic Updates**:
    - **Policy Lag**: Economy responds to government ideology from 10 ticks ago
@@ -126,11 +133,14 @@ Every simulation tick (100ms real-time):
    - Policy queue updates for lagged effects
    - Term countdown
 
-5. **Social Events** (with cooldowns):
+5. **Social Events** (with cooldowns and instability scaling):
    - **Protests**: Trust <0.2 AND happiness <0.3, with fatigue system (20-tick cooldown)
+   - **Latent Unrest Trigger**: Catastrophic conditions (happiness <0.1 AND trust <0.1) force uprisings (5% chance)
    - **Reform Movements**: Low trust + high radicalization/inequality triggers recovery (40-tick cooldown)
+   - **Persistent Reform System**: 30-tick duration with 2x strength multiplier and ongoing effects
    - **Economic Crises**: Random chance with contextual triggers (30-tick cooldown)
    - **Social Harmony**: High trust + low radicalization (60-tick cooldown)
+   - **Instability Pressure**: Event probabilities scale 1.0-2.0x based on system health
    - **Narrative Logging**: Events include contextual reasons and state snapshots
 
 ### Emergent Behaviors
@@ -150,6 +160,10 @@ The simulation produces complex emergent behaviors from simple rules:
 - **Memory-Driven Behavior**: Citizens react to trends, creating delayed reactions and momentum
 - **Policy Delay Effects**: Government decisions create economic cycles with 10-tick lag
 - **Natural Recovery**: Very slow stabilization prevents permanent extreme states
+- **Pressure-Driven Change**: Low happiness/trust actively drives polarization and unrest
+- **Dynamic Event Probability**: Unhealthy systems become more reactive and event-prone
+- **Economic-Happiness Coupling**: Stronger feedback loops prevent passive stability
+- **Anti-Equilibrium Dynamics**: Multiple mechanisms prevent permanent static states
 
 ### Complex Adaptive System Properties
 
@@ -238,6 +252,34 @@ The simulation follows complex adaptive system principles:
 4. **Lag Effects**: Previous values influence current changes (momentum)
 5. **Imperfect Information**: Elections have noise and turnout variation
 
+## Anti-Equilibrium Systems
+
+The simulation includes comprehensive mechanisms to prevent permanent static states and ensure that bad conditions create pressure for change:
+
+### Pressure-Driven Instability
+
+- **Happiness-Driven Ideological Drift**: Citizens with happiness < 0.2 experience ideological movement (30% chance per tick), breaking static center equilibrium
+- **Trust-Amplified Polarization**: Low trust (<0.2) increases ideological divergence with 1.5x multiplier, preventing stable stagnation
+- **Economic-Happiness Coupling**: Stronger feedback loops (unemployment -0.8, inequality -0.5, GDP 0.3) prevent passive stability
+
+### Forced Unrest Mechanisms
+
+- **Latent Unrest Trigger**: Catastrophic conditions (happiness < 0.1 AND trust < 0.1) force uprisings with 5% chance per tick
+- **Instability Pressure**: Event probabilities scale 1.0-2.0x based on system health: `instability = (1.0 - trust) + (1.0 - happiness)`
+- **Weak Long-Term Evolution**: 10% chance per tick of ±0.01 ideological drift prevents permanent center lock
+
+### Dynamic Reform Recovery
+
+- **Persistent Reform System**: 30-tick duration with 2x strength multiplier and gradual decay
+- **Ongoing Reform Effects**: Continuous trust/happiness recovery and deradicalization during active reforms
+- **Reform State Tracking**: Active reforms with countdown timers and strength decay
+
+### Anti-Deadlock Guarantees
+
+- **Multiple Pressure Points**: No single mechanism can be bypassed - bad conditions always create instability
+- **Threshold Cascades**: Multiple systems trigger when conditions deteriorate sufficiently
+- **Evolutionary Pressure**: Even stable systems experience weak long-term change
+
 ## Recovery Dynamics
 
 The simulation includes sophisticated recovery mechanisms that prevent permanent collapse:
@@ -292,6 +334,9 @@ Different seeds produce varying societal patterns:
 - **Recovery Cycles**: Societies that collapse can recover through reform movements
 - **Protest Waves**: Periods of unrest followed by fatigue and stabilization
 - **Long-Term Stability**: Natural drift prevents permanent extreme states over time
+- **Pressure-Driven Evolution**: Bad conditions always create change through polarization, unrest, or reform
+- **Dynamic Instability**: Unhealthy systems become increasingly reactive and event-prone
+- **Anti-Equilibrium Dynamics**: No permanent static states - systems continuously evolve
 
 ## License
 

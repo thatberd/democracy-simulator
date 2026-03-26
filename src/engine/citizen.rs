@@ -53,7 +53,7 @@ impl Citizen {
         }
     }
 
-    pub fn apply_natural_stabilization_drift(&mut self) {
+    pub fn apply_natural_stabilization_drift(&mut self, center_drift: f32) {
         // Very slow recovery to prevent permanent deadlock
         let trust_drift = 0.001;
         let happiness_drift = 0.001;
@@ -71,9 +71,13 @@ impl Citizen {
         if self.ideology.abs() > 0.8 {
             self.ideology *= ideology_drift;
         }
+        
+        // PREVENT PERMANENT CENTER LOCK: Apply weak long-term drift
+        self.ideology += center_drift;
+        self.ideology = self.ideology.clamp(-1.0, 1.0);
     }
 
-    pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32, chaos: f32) {
+    pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32, chaos: f32, happiness_drift: f32) {
         // Store previous value for change tracking
         self.previous_ideology = self.ideology;
         
@@ -97,7 +101,7 @@ impl Citizen {
             0.0
         };
         
-        self.ideology += nonlinear_diff * influence_strength + noise + repulsion_effect + chaos;
+        self.ideology += nonlinear_diff * influence_strength + noise + repulsion_effect + chaos + happiness_drift;
         self.ideology = self.ideology.clamp(-1.0, 1.0);
         
         // Update radicalization based on extremeness and social conditions
@@ -154,51 +158,63 @@ impl Citizen {
         // Economic factors with stronger feedback effects
         let unemployment_impact = if economy.unemployment > 0.3 {
             // Threshold effect: high unemployment causes disproportionate unhappiness
-            -(economy.unemployment - 0.3).powi(2) * 3.0 // Increased from 2.0
+            -(economy.unemployment - 0.3).powi(2) * 4.0 // Increased from 3.0
         } else {
-            -economy.unemployment * 0.5 // Increased from 0.3
+            -economy.unemployment * 0.8 // Increased from 0.5
         };
         
         let inequality_impact = if economy.inequality > 0.6 {
             // High inequality triggers strong negative response
-            -(economy.inequality - 0.6).powi(3) * 4.0 // Increased from 3.0
+            -(economy.inequality - 0.6).powi(3) * 6.0 // Increased from 4.0
         } else {
-            -economy.inequality * 0.3 // Increased from 0.2
+            -economy.inequality * 0.5 // Increased from 0.3
         };
         
         // GDP changes affect happiness more strongly
         let gdp_trend = economy.gdp - economy.previous_gdp;
         let gdp_impact = if gdp_trend < -0.02 {
             // Falling GDP reduces happiness significantly
-            gdp_trend * 2.0
+            gdp_trend * 3.0 // Increased from 2.0
         } else if gdp_trend > 0.02 {
             // Rising GDP improves happiness moderately
-            gdp_trend * 0.8
+            gdp_trend * 1.2 // Increased from 0.8
         } else {
             0.0
         };
+        
+        // STRONGER ECONOMY → HAPPINESS COUPLING: direct economic effects
+        let gdp_level_impact = (economy.gdp - 1.0) * 0.3; // Increased from 0.2
+        let unemployment_direct = -economy.unemployment * 0.7; // Increased from 0.5
         
         // Political alignment with nonlinear amplification for extremists
         let ideology_diff = (self.ideology - government_ideology).abs();
         let alignment_factor = if ideology_diff > 0.5 {
             // Extremists experience stronger dissatisfaction
-            -(ideology_diff * 0.5 * (1.0 + self.radicalization)) // Increased from 0.4
+            -(ideology_diff * 0.6 * (1.0 + self.radicalization)) // Increased from 0.5
         } else {
-            (1.0 - ideology_diff) * 0.2
+            (1.0 - ideology_diff) * 0.3 // Increased from 0.2
         };
         
         // Trust creates feedback loop
-        let trust_bonus = self.trust_in_government * 0.15; // Increased from 0.1
+        let trust_bonus = self.trust_in_government * 0.2; // Increased from 0.15
         
         // High inequality increases polarization effect on happiness
         let polarization_modifier = if economy.inequality > 0.7 {
-            -self.radicalization * 0.2 // Polarized citizens unhappier in high inequality
+            -self.radicalization * 0.3 // Increased from 0.2
+        } else {
+            0.0
+        };
+        
+        // Inequality increases dissatisfaction and radicalization
+        let inequality_radicalization = if economy.inequality > 0.8 {
+            -economy.inequality * 0.2 * self.radicalization
         } else {
             0.0
         };
         
         let mut new_happiness = base_happiness + unemployment_impact + inequality_impact 
-            + alignment_factor + trust_bonus + gdp_impact + polarization_modifier;
+            + alignment_factor + trust_bonus + gdp_impact + polarization_modifier
+            + gdp_level_impact + unemployment_direct + inequality_radicalization;
         
         // Apply sigmoid transformation for saturation effects
         new_happiness = (new_happiness * 4.0 - 2.0).tanh() * 0.5 + 0.5;

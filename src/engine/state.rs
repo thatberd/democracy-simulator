@@ -17,6 +17,10 @@ pub struct State {
     pub last_reform_tick: u64,
     pub last_crisis_tick: u64,
     pub protest_history: Vec<bool>, // Track recent protests for fatigue
+    // Reform tracking for persistent effects
+    pub reform_active: bool,
+    pub reform_duration: u64, // Ticks remaining for reform effects
+    pub reform_strength: f32, // Strength multiplier for reform effects
 }
 
 impl Default for State {
@@ -64,6 +68,9 @@ impl State {
             last_reform_tick: 0,
             last_crisis_tick: 0,
             protest_history: vec![false; 20], // Track last 20 ticks for fatigue
+            reform_active: false,
+            reform_duration: 0,
+            reform_strength: 0.0,
         }
     }
 
@@ -110,6 +117,26 @@ impl State {
             _ => 0,
         };
         self.tick - last_event < cooldown_ticks
+    }
+
+    pub fn start_reform(&mut self, duration: u64, strength: f32) {
+        self.reform_active = true;
+        self.reform_duration = duration;
+        self.reform_strength = strength;
+    }
+
+    pub fn update_reform(&mut self) {
+        if self.reform_active {
+            if self.reform_duration > 0 {
+                self.reform_duration -= 1;
+                // Gradually decay reform strength
+                self.reform_strength *= 0.98;
+            } else {
+                // Reform expired
+                self.reform_active = false;
+                self.reform_strength = 0.0;
+            }
+        }
     }
 
     pub fn get_events(&self) -> &[String] {
@@ -183,6 +210,9 @@ struct SerializableState {
     last_reform_tick: u64,
     last_crisis_tick: u64,
     protest_history: Vec<bool>,
+    reform_active: bool,
+    reform_duration: u64,
+    reform_strength: f32,
 }
 
 impl From<&State> for SerializableState {
@@ -198,6 +228,9 @@ impl From<&State> for SerializableState {
             last_reform_tick: state.last_reform_tick,
             last_crisis_tick: state.last_crisis_tick,
             protest_history: state.protest_history.clone(),
+            reform_active: state.reform_active,
+            reform_duration: state.reform_duration,
+            reform_strength: state.reform_strength,
         }
     }
 }
@@ -217,6 +250,9 @@ impl From<SerializableState> for State {
             last_reform_tick: serializable.last_reform_tick,
             last_crisis_tick: serializable.last_crisis_tick,
             protest_history: serializable.protest_history,
+            reform_active: serializable.reform_active,
+            reform_duration: serializable.reform_duration,
+            reform_strength: serializable.reform_strength,
         }
     }
 }
