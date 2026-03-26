@@ -9,6 +9,9 @@ pub struct Citizen {
     pub previous_ideology: f32, // for tracking change rate
     pub previous_happiness: f32,
     pub previous_trust: f32,
+    // Memory fields for trend-based behavior
+    pub past_happiness: f32,  // happiness from N ticks ago
+    pub past_trust: f32,      // trust from N ticks ago
 }
 
 impl Citizen {
@@ -26,6 +29,47 @@ impl Citizen {
             previous_ideology: ideology,
             previous_happiness: happiness,
             previous_trust: trust,
+            past_happiness: happiness, // Initialize with current values
+            past_trust: trust,
+        }
+    }
+
+    pub fn update_memory(&mut self) {
+        // Shift memory: current becomes past, past becomes older
+        self.past_happiness = self.previous_happiness;
+        self.past_trust = self.previous_trust;
+    }
+
+    pub fn increase_polarization_from_inequality(&mut self, inequality: f32) {
+        // High inequality increases polarization rate
+        if inequality > 0.7 {
+            let polarization_boost = (inequality - 0.7) * 0.02;
+            // Push citizens toward more extreme positions
+            if self.ideology > 0.0 {
+                self.ideology = (self.ideology + polarization_boost).min(1.0);
+            } else {
+                self.ideology = (self.ideology - polarization_boost).max(-1.0);
+            }
+        }
+    }
+
+    pub fn apply_natural_stabilization_drift(&mut self) {
+        // Very slow recovery to prevent permanent deadlock
+        let trust_drift = 0.001;
+        let happiness_drift = 0.001;
+        let ideology_drift = 0.995; // Very slow pull toward center
+        
+        // Apply drift only when values are very low
+        if self.trust_in_government < 0.1 {
+            self.trust_in_government = (self.trust_in_government + trust_drift).min(0.15);
+        }
+        if self.happiness < 0.1 {
+            self.happiness = (self.happiness + happiness_drift).min(0.15);
+        }
+        
+        // Very slow ideological moderation over long time
+        if self.ideology.abs() > 0.8 {
+            self.ideology *= ideology_drift;
         }
     }
 
@@ -61,18 +105,27 @@ impl Citizen {
     }
     
     pub fn interact_with(&mut self, other: &Citizen) {
-        // Citizen-to-citizen interaction with mutual influence
+        // Citizen-to-citizen interaction with echo chamber effects
         let ideology_diff = other.ideology - self.ideology;
         let distance = ideology_diff.abs();
         
-        // Influence strength decreases with ideological distance
+        // Calculate similarity for echo chamber effect
+        let similarity = 1.0 - distance;
+        
+        // Echo chamber: similar groups reinforce internally, opposing groups stop blending
         let base_strength = 0.02;
-        let distance_factor = (-distance * 3.0).exp(); // Exponential decay with distance
+        let echo_chamber_multiplier = if similarity > 0.7 {
+            2.0 // Strong reinforcement within echo chambers
+        } else if similarity < 0.3 {
+            0.2 // Weak influence across opposing groups
+        } else {
+            1.0 // Normal influence for moderate similarity
+        };
         
-        // Faction bonus: similar ideologies influence each other more
-        let faction_bonus = if distance < 0.2 { 1.5 } else { 0.5 };
+        // Distance-based decay still applies but is modified by echo chamber
+        let distance_factor = (-distance * 3.0).exp();
         
-        let influence = ideology_diff * base_strength * distance_factor * faction_bonus;
+        let influence = ideology_diff * base_strength * distance_factor * echo_chamber_multiplier;
         
         // Apply influence with saturation
         self.ideology += influence.tanh() * 0.1;
@@ -98,34 +151,54 @@ impl Citizen {
         
         let base_happiness = 0.4;
         
-        // Economic factors with nonlinear effects
+        // Economic factors with stronger feedback effects
         let unemployment_impact = if economy.unemployment > 0.3 {
             // Threshold effect: high unemployment causes disproportionate unhappiness
-            -(economy.unemployment - 0.3).powi(2) * 2.0
+            -(economy.unemployment - 0.3).powi(2) * 3.0 // Increased from 2.0
         } else {
-            -(economy.unemployment * 0.3)
+            -economy.unemployment * 0.5 // Increased from 0.3
         };
         
         let inequality_impact = if economy.inequality > 0.6 {
             // High inequality triggers strong negative response
-            -(economy.inequality - 0.6).powi(3) * 3.0
+            -(economy.inequality - 0.6).powi(3) * 4.0 // Increased from 3.0
         } else {
-            -(economy.inequality * 0.2)
+            -economy.inequality * 0.3 // Increased from 0.2
+        };
+        
+        // GDP changes affect happiness more strongly
+        let gdp_trend = economy.gdp - economy.previous_gdp;
+        let gdp_impact = if gdp_trend < -0.02 {
+            // Falling GDP reduces happiness significantly
+            gdp_trend * 2.0
+        } else if gdp_trend > 0.02 {
+            // Rising GDP improves happiness moderately
+            gdp_trend * 0.8
+        } else {
+            0.0
         };
         
         // Political alignment with nonlinear amplification for extremists
         let ideology_diff = (self.ideology - government_ideology).abs();
         let alignment_factor = if ideology_diff > 0.5 {
             // Extremists experience stronger dissatisfaction
-            -(ideology_diff * 0.4 * (1.0 + self.radicalization))
+            -(ideology_diff * 0.5 * (1.0 + self.radicalization)) // Increased from 0.4
         } else {
             (1.0 - ideology_diff) * 0.2
         };
         
         // Trust creates feedback loop
-        let trust_bonus = self.trust_in_government * 0.1;
+        let trust_bonus = self.trust_in_government * 0.15; // Increased from 0.1
         
-        let mut new_happiness = base_happiness + unemployment_impact + inequality_impact + alignment_factor + trust_bonus;
+        // High inequality increases polarization effect on happiness
+        let polarization_modifier = if economy.inequality > 0.7 {
+            -self.radicalization * 0.2 // Polarized citizens unhappier in high inequality
+        } else {
+            0.0
+        };
+        
+        let mut new_happiness = base_happiness + unemployment_impact + inequality_impact 
+            + alignment_factor + trust_bonus + gdp_impact + polarization_modifier;
         
         // Apply sigmoid transformation for saturation effects
         new_happiness = (new_happiness * 4.0 - 2.0).tanh() * 0.5 + 0.5;
@@ -137,19 +210,29 @@ impl Citizen {
         // Store previous value
         self.previous_trust = self.trust_in_government;
         
-        // Nonlinear response to changes
+        // Calculate trends for memory-based behavior
+        let happiness_trend = self.happiness - self.past_happiness;
+        let trust_trend = self.trust_in_government - self.past_trust;
+        
+        // Nonlinear response to changes with memory amplification
         let happiness_impact = if happiness_change < -0.1 {
             // Rapid happiness drops cause trust crashes
-            happiness_change * 2.0 * (1.0 + self.radicalization)
+            let memory_multiplier = if happiness_trend < -0.05 { 1.5 } else { 1.0 }; // Amplify if declining trend
+            happiness_change * 2.0 * (1.0 + self.radicalization) * memory_multiplier
         } else {
-            happiness_change * 0.3
+            // Slow trust recovery even when improving
+            let recovery_damping = if happiness_trend > 0.05 { 0.5 } else { 1.0 }; // Dampen recovery
+            happiness_change * 0.3 * recovery_damping
         };
         
         let economy_impact = if economy_change < -0.05 {
             // Economic crises cause disproportionate trust loss
-            economy_change * 3.0
+            let memory_multiplier = if trust_trend < -0.02 { 1.3 } else { 1.0 }; // Amplify if trust was already falling
+            economy_change * 3.0 * memory_multiplier
         } else {
-            economy_change * 0.2
+            // Slow economic recovery trust gains
+            let recovery_damping = if economy_change > 0.02 { 0.4 } else { 1.0 };
+            economy_change * 0.2 * recovery_damping
         };
         
         // Low trust creates positive feedback (more distrust)

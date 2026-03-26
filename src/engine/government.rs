@@ -4,19 +4,41 @@ use serde::{Deserialize, Serialize};
 pub struct Government {
     pub current_ideology: f32, // -1.0 = far left, 1.0 = far right
     pub term_remaining: u32,
+    pub previous_ideology: f32, // For inertia calculations
+    pub policy_queue: Vec<f32>, // Queue of past government ideologies for lag effects
 }
 
 impl Government {
     pub fn new(ideology: f32, term_length: u32) -> Self {
+        let ideology = ideology.clamp(-1.0, 1.0);
         Self {
-            current_ideology: ideology.clamp(-1.0, 1.0),
+            current_ideology: ideology,
             term_remaining: term_length,
+            previous_ideology: ideology,
+            policy_queue: vec![ideology; 15], // Initialize with 15 ticks of current ideology
         }
     }
 
     pub fn update_term(&mut self) {
         if self.term_remaining > 0 {
             self.term_remaining -= 1;
+        }
+    }
+
+    pub fn update_policy_queue(&mut self) {
+        // Add current ideology to queue and remove oldest
+        self.policy_queue.push(self.current_ideology);
+        if self.policy_queue.len() > 15 {
+            self.policy_queue.remove(0);
+        }
+    }
+
+    pub fn get_lagged_ideology(&self) -> f32 {
+        // Return ideology from 10 ticks ago for economic effects
+        if self.policy_queue.len() >= 10 {
+            self.policy_queue[self.policy_queue.len() - 10]
+        } else {
+            self.current_ideology // Fallback if queue not full yet
         }
     }
 
@@ -64,9 +86,14 @@ impl Government {
         
         // Add final systemic noise (media influence, etc.)
         let systemic_noise = rng.gen_range(-0.05..0.05);
-        let final_ideology = (new_ideology + systemic_noise).clamp(-1.0, 1.0);
+        let new_ideology = (new_ideology + systemic_noise).clamp(-1.0, 1.0);
         
-        self.current_ideology = final_ideology;
+        // Apply inertia to smooth transitions
+        let inertia = 0.8;
+        let final_ideology = self.current_ideology * inertia + new_ideology * (1.0 - inertia);
+        
+        self.previous_ideology = self.current_ideology;
+        self.current_ideology = final_ideology.clamp(-1.0, 1.0);
         self.term_remaining = 50; // Reset term to 50 ticks
         
         final_ideology

@@ -12,6 +12,11 @@ pub struct State {
     pub seed: u64,
     pub rng: StdRng, // Note: StdRng doesn't serialize, but we'll reconstruct it
     events: Vec<String>,
+    // Event tracking for cooldowns and fatigue
+    pub last_protest_tick: u64,
+    pub last_reform_tick: u64,
+    pub last_crisis_tick: u64,
+    pub protest_history: Vec<bool>, // Track recent protests for fatigue
 }
 
 impl Default for State {
@@ -55,6 +60,10 @@ impl State {
             seed,
             rng,
             events: Vec::new(),
+            last_protest_tick: 0,
+            last_reform_tick: 0,
+            last_crisis_tick: 0,
+            protest_history: vec![false; 20], // Track last 20 ticks for fatigue
         }
     }
 
@@ -73,6 +82,34 @@ impl State {
         if self.events.len() > 100 {
             self.events.remove(0);
         }
+    }
+
+    pub fn update_protest_history(&mut self, had_protest: bool) {
+        self.protest_history.push(had_protest);
+        if self.protest_history.len() > 20 {
+            self.protest_history.remove(0);
+        }
+    }
+
+    pub fn get_protest_fatigue(&self) -> f32 {
+        let recent_protests = self.protest_history.iter().filter(|&&x| x).count();
+        if recent_protests > 5 {
+            0.3 // High fatigue
+        } else if recent_protests > 2 {
+            0.6 // Moderate fatigue
+        } else {
+            1.0 // No fatigue
+        }
+    }
+
+    pub fn is_event_on_cooldown(&self, event_type: &str, cooldown_ticks: u64) -> bool {
+        let last_event = match event_type {
+            "protest" => self.last_protest_tick,
+            "reform" => self.last_reform_tick,
+            "crisis" => self.last_crisis_tick,
+            _ => 0,
+        };
+        self.tick - last_event < cooldown_ticks
     }
 
     pub fn get_events(&self) -> &[String] {
@@ -142,6 +179,10 @@ struct SerializableState {
     tick: u64,
     seed: u64,
     events: Vec<String>,
+    last_protest_tick: u64,
+    last_reform_tick: u64,
+    last_crisis_tick: u64,
+    protest_history: Vec<bool>,
 }
 
 impl From<&State> for SerializableState {
@@ -153,6 +194,10 @@ impl From<&State> for SerializableState {
             tick: state.tick,
             seed: state.seed,
             events: state.events.clone(),
+            last_protest_tick: state.last_protest_tick,
+            last_reform_tick: state.last_reform_tick,
+            last_crisis_tick: state.last_crisis_tick,
+            protest_history: state.protest_history.clone(),
         }
     }
 }
@@ -168,6 +213,10 @@ impl From<SerializableState> for State {
             seed: serializable.seed,
             rng,
             events: serializable.events,
+            last_protest_tick: serializable.last_protest_tick,
+            last_reform_tick: serializable.last_reform_tick,
+            last_crisis_tick: serializable.last_crisis_tick,
+            protest_history: serializable.protest_history,
         }
     }
 }
