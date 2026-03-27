@@ -66,7 +66,16 @@ impl Simulation {
             
             // INSTABILITY WHEN TRUST IS LOW: Add chaos for low-trust citizens
             let chaos = if citizen.trust_in_government < 0.2 {
-                let polarization_factor = if citizen.trust_in_government < 0.2 { 1.5 } else { 1.0 };
+                let mut polarization_factor = 1.5; // Base polarization for low trust
+                
+                // ESCALATION EFFECTS: Prolonged hardship amplifies instability
+                if self.state.hardship_duration > 50 {
+                    polarization_factor *= 1.2; // 20% more instability after 50 ticks of hardship
+                }
+                if self.state.hardship_duration > 100 {
+                    polarization_factor *= 1.5; // 50% more instability after 100 ticks of hardship
+                }
+                
                 self.state.rng.gen_range(-0.05..0.05) * (1.0 - citizen.trust_in_government) * polarization_factor
             } else {
                 0.0
@@ -112,13 +121,35 @@ impl Simulation {
         // Update citizen trust
         let avg_happiness_change = self.state.get_average_happiness() - prev_avg_happiness;
         let gdp_change = self.state.economy.gdp - prev_gdp;
+        
+        // PHASE TRANSITION: Track hardship duration
+        let avg_happiness = self.state.get_average_happiness();
+        if avg_happiness < 0.2 {
+            self.state.hardship_duration += 1;
+        } else {
+            self.state.hardship_duration = 0;
+        }
+        
         for citizen in &mut self.state.citizens {
             citizen.update_trust(avg_happiness_change, gdp_change);
             
-            // Apply ongoing reform effects
+            // TRUST DECAY UNDER PROLONGED HARDSHIP: Chronic misery erodes trust
+            if avg_happiness < 0.2 {
+                let trust_decay = 0.01 * (1.0 + self.state.hardship_duration as f32 * 0.001); // Scale with duration
+                citizen.trust_in_government = (citizen.trust_in_government - trust_decay).max(0.0);
+            }
+            
+            // Apply ongoing reform effects with RECOVERY ACCELERATION
             if self.state.reform_active {
-                let trust_boost = 0.005 * self.state.reform_strength; // Ongoing trust recovery
-                let happiness_boost = 0.003 * self.state.reform_strength; // Ongoing happiness recovery
+                let mut trust_boost = 0.005 * self.state.reform_strength;
+                let mut happiness_boost = 0.003 * self.state.reform_strength;
+                
+                // RECOVERY ACCELERATION: Stronger bounce-back after prolonged hardship
+                if self.state.hardship_duration > 100 {
+                    trust_boost *= 2.0;
+                    happiness_boost *= 2.0;
+                }
+                
                 citizen.trust_in_government = (citizen.trust_in_government + trust_boost).min(1.0);
                 citizen.happiness = (citizen.happiness + happiness_boost).min(1.0);
                 citizen.radicalization *= 1.0 - 0.01 * self.state.reform_strength; // Gradual deradicalization
@@ -144,6 +175,13 @@ impl Simulation {
                 0.0
             };
             citizen.apply_natural_stabilization_drift(center_drift);
+            
+            // POLARIZATION FROM CHRONIC STRESS: Prolonged hardship pushes society to extremes
+            if self.state.hardship_duration > 80 {
+                let polarization_strength = 1.02; // 2% increase per tick
+                citizen.ideology *= polarization_strength;
+                citizen.ideology = citizen.ideology.clamp(-1.0, 1.0);
+            }
         }
 
         // Update economy with policy lag
@@ -176,7 +214,12 @@ impl Simulation {
         let avg_trust = self.state.get_average_trust();
         let avg_happiness = self.state.get_average_happiness();
         let instability = (1.0 - avg_trust) + (1.0 - avg_happiness); // 0.0 to 2.0
-        let instability_multiplier = 1.0 + instability * 0.5; // 1.0 to 2.0 multiplier
+        let mut instability_multiplier = 1.0 + instability * 0.5; // 1.0 to 2.0 multiplier
+        
+        // ESCALATION EFFECTS: Prolonged hardship increases instability
+        if self.state.hardship_duration > 100 {
+            instability_multiplier *= 1.5; // 50% more instability after 100 ticks of hardship
+        }
         
         // Apply instability to event chances
         let adjusted_event_chance = event_chance * instability_multiplier;
@@ -373,6 +416,110 @@ impl Simulation {
                 citizen.trust_in_government = (citizen.trust_in_government * 1.05).min(1.0);
             }
         }
+        
+        // PHASE TRANSITION TRIGGERS: Force major system changes after prolonged hardship
+        if self.state.hardship_duration > 150 {
+            let roll = self.state.rng.gen_range(0.0..1.0);
+            
+            if roll < 0.33 {
+                // TRIGGER COLLAPSE
+                self.trigger_collapse();
+            } else if roll < 0.66 {
+                // TRIGGER MAJOR REFORM
+                self.trigger_major_reform();
+            } else {
+                // TRIGGER POLARIZATION
+                self.trigger_polarization();
+            }
+        }
+    }
+    
+    fn trigger_collapse(&mut self) {
+        self.state.add_event(format!(
+            "Tick {}: SYSTEM COLLAPSE! Prolonged hardship ({} ticks) triggered total societal breakdown!", 
+            self.state.tick, self.state.hardship_duration
+        ));
+        
+        // Collapse effects: severe trust loss, happiness crash, radicalization spike
+        for citizen in &mut self.state.citizens {
+            citizen.trust_in_government *= 0.1; // Near-total trust loss
+            citizen.happiness *= 0.3; // Happiness crashes
+            citizen.radicalization = (citizen.radicalization * 2.0).min(1.0); // Radicalization spikes
+            
+            // Push ideologies to random extremes
+            if self.state.rng.gen::<f32>() < 0.5 {
+                citizen.ideology = (citizen.ideology * 1.5).min(1.0);
+            } else {
+                citizen.ideology = (citizen.ideology * 1.5).max(-1.0);
+            }
+        }
+        
+        // Economic collapse
+        self.state.economy.gdp *= 0.5;
+        self.state.economy.unemployment = (self.state.economy.unemployment * 2.0).min(1.0);
+        self.state.economy.inequality = (self.state.economy.inequality * 1.3).min(1.0);
+        
+        // HARDSHIP RESET: Reduce hardship after major transition
+        self.state.hardship_duration = (self.state.hardship_duration / 3).max(0);
+    }
+    
+    fn trigger_major_reform(&mut self) {
+        self.state.add_event(format!(
+            "Tick {}: MAJOR REFORM! Prolonged hardship ({} ticks) forces systemic transformation!", 
+            self.state.tick, self.state.hardship_duration
+        ));
+        
+        // Start powerful reform with extended duration
+        self.state.start_reform(60, 3.0); // 60 ticks, 3x strength
+        
+        // Major reform effects: significant trust and happiness recovery
+        for citizen in &mut self.state.citizens {
+            let trust_gain = 0.4 * self.state.reform_strength;
+            let happiness_gain = 0.3 * self.state.reform_strength;
+            citizen.trust_in_government = (citizen.trust_in_government + trust_gain).min(1.0);
+            citizen.happiness = (citizen.happiness + happiness_gain).min(1.0);
+            citizen.radicalization *= 0.5; // Major deradicalization
+            
+            // Move ideologies toward center
+            citizen.ideology *= 0.7;
+        }
+        
+        // Economic recovery
+        self.state.economy.gdp *= 1.3;
+        self.state.economy.unemployment *= 0.7;
+        self.state.economy.inequality *= 0.8;
+        
+        // HARDSHIP RESET: Reduce hardship after major transition
+        self.state.hardship_duration = (self.state.hardship_duration / 2).max(0);
+    }
+    
+    fn trigger_polarization(&mut self) {
+        self.state.add_event(format!(
+            "Tick {}: MASS POLARIZATION! Prolonged hardship ({} ticks) shatters social cohesion!", 
+            self.state.tick, self.state.hardship_duration
+        ));
+        
+        // Polarization effects: split society into factions
+        for citizen in &mut self.state.citizens {
+            citizen.trust_in_government *= 0.6; // Moderate trust loss
+            citizen.radicalization = (citizen.radicalization * 1.5).min(1.0); // Increased radicalization
+            
+            // Force citizens to ideological extremes
+            if self.state.rng.gen::<f32>() < 0.5 {
+                // Push to left
+                citizen.ideology = (citizen.ideology - 0.3).max(-1.0);
+            } else {
+                // Push to right
+                citizen.ideology = (citizen.ideology + 0.3).min(1.0);
+            }
+        }
+        
+        // Economic stress from polarization
+        self.state.economy.gdp *= 0.8;
+        self.state.economy.inequality = (self.state.economy.inequality * 1.2).min(1.0);
+        
+        // HARDSHIP RESET: Reduce hardship after major transition
+        self.state.hardship_duration = (self.state.hardship_duration / 2).max(0);
     }
 
     fn hold_election(&mut self) {

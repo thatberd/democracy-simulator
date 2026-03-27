@@ -21,6 +21,8 @@ pub struct State {
     pub reform_active: bool,
     pub reform_duration: u64, // Ticks remaining for reform effects
     pub reform_strength: f32, // Strength multiplier for reform effects
+    // Phase transition tracking
+    pub hardship_duration: u64, // Ticks of prolonged low happiness
 }
 
 impl Default for State {
@@ -71,6 +73,7 @@ impl State {
             reform_active: false,
             reform_duration: 0,
             reform_strength: 0.0,
+            hardship_duration: 0,
         }
     }
 
@@ -213,6 +216,7 @@ struct SerializableState {
     reform_active: bool,
     reform_duration: u64,
     reform_strength: f32,
+    hardship_duration: u64,
 }
 
 impl From<&State> for SerializableState {
@@ -231,6 +235,7 @@ impl From<&State> for SerializableState {
             reform_active: state.reform_active,
             reform_duration: state.reform_duration,
             reform_strength: state.reform_strength,
+            hardship_duration: state.hardship_duration,
         }
     }
 }
@@ -253,6 +258,7 @@ impl From<SerializableState> for State {
             reform_active: serializable.reform_active,
             reform_duration: serializable.reform_duration,
             reform_strength: serializable.reform_strength,
+            hardship_duration: 0, // Reset on deserialize
         }
     }
 }
