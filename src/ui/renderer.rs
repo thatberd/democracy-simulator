@@ -16,7 +16,7 @@ impl UIRenderer {
         Self
     }
 
-    pub fn render(&self, f: &mut Frame, simulation: &Simulation) {
+    pub fn render(&self, f: &mut Frame, simulation: &Simulation, scroll_offset: usize) {
         let state = simulation.state();
         
         // Main layout
@@ -26,13 +26,13 @@ impl UIRenderer {
                 Constraint::Length(3),  // Header
                 Constraint::Length(10), // Stats
                 Constraint::Min(6),     // Events
-                Constraint::Length(3),  // Controls
+                Constraint::Length(4),  // Controls (increased from 3)
             ])
             .split(f.area());
 
         self.render_header(f, chunks[0], state);
         self.render_stats(f, chunks[1], state);
-        self.render_events(f, chunks[2], state);
+        self.render_events(f, chunks[2], state, scroll_offset);
         self.render_controls(f, chunks[3], simulation.is_paused());
     }
 
@@ -143,7 +143,7 @@ impl UIRenderer {
         f.render_widget(sparkline, right_chunks[1]);
     }
 
-    fn render_events(&self, f: &mut Frame, area: Rect, state: &crate::engine::State) {
+    fn render_events(&self, f: &mut Frame, area: Rect, state: &crate::engine::State, scroll_offset: usize) {
         let events = state.get_events();
         
         if events.is_empty() {
@@ -154,21 +154,23 @@ impl UIRenderer {
             return;
         }
 
-        // Show last N events that fit in the area
+        // Show events based on scroll offset
         let visible_events = area.height.saturating_sub(2) as usize;
-        let start_idx = if events.len() > visible_events {
-            events.len() - visible_events
+        let start_idx = scroll_offset.min(events.len().saturating_sub(visible_events));
+        let end_idx = (start_idx + visible_events).min(events.len());
+
+        let event_items: Vec<ListItem> = if start_idx < events.len() {
+            events[start_idx..end_idx]
+                .iter()
+                .map(|event| ListItem::new(event.as_str()))
+                .collect()
         } else {
-            0
+            Vec::new()
         };
 
-        let event_items: Vec<ListItem> = events[start_idx..]
-            .iter()
-            .map(|event| ListItem::new(event.as_str()))
-            .collect();
-
         let events_list = List::new(event_items)
-            .block(Block::default().borders(Borders::ALL).title("Event Log"))
+            .block(Block::default().borders(Borders::ALL).title(format!("Event Log ({}-{} of {})", 
+                start_idx + 1, end_idx, events.len())))
             .style(Style::default().fg(Color::White));
 
         f.render_widget(events_list, area);
@@ -191,7 +193,16 @@ impl UIRenderer {
                 Span::styled("p", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                 Span::raw(": pause/resume  "),
                 Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                Span::raw(": reset with new seed"),
+                Span::raw(": reset"),
+            ]),
+            Line::from(vec![
+                Span::styled("Event Log: ", Style::default().fg(Color::Gray)),
+                Span::styled("↑↓", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::raw(": scroll  "),
+                Span::styled("PgUp/PgDn", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::raw(": page  "),
+                Span::styled("Home/End", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::raw(": top/bottom"),
             ])
         ];
 

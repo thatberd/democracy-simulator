@@ -15,6 +15,7 @@ pub struct App {
     simulation: Simulation,
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
     should_quit: bool,
+    event_scroll_offset: usize,
 }
 
 impl App {
@@ -30,6 +31,7 @@ impl App {
             simulation: Simulation::new(seed),
             terminal,
             should_quit: false,
+            event_scroll_offset: 0,
         })
     }
 
@@ -68,6 +70,12 @@ impl App {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Char('p') => self.simulation.toggle_pause(),
             KeyCode::Char('r') => self.simulation.reset(None),
+            KeyCode::Up => self.scroll_events_up(),
+            KeyCode::Down => self.scroll_events_down(),
+            KeyCode::PageUp => self.scroll_events_page_up(),
+            KeyCode::PageDown => self.scroll_events_page_down(),
+            KeyCode::Home => self.scroll_events_to_top(),
+            KeyCode::End => self.scroll_events_to_bottom(),
             _ => {}
         }
     }
@@ -75,9 +83,57 @@ impl App {
     fn render(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.terminal.draw(|f| {
             let renderer = UIRenderer::new();
-            renderer.render(f, &self.simulation);
+            renderer.render(f, &self.simulation, self.event_scroll_offset);
         })?;
         Ok(())
+    }
+
+    fn scroll_events_up(&mut self) {
+        if self.event_scroll_offset > 0 {
+            self.event_scroll_offset -= 1;
+        }
+    }
+
+    fn scroll_events_down(&mut self) {
+        let events = self.simulation.state().get_events();
+        let max_offset = if events.len() > 10 {
+            events.len() - 10
+        } else {
+            0
+        };
+        
+        if self.event_scroll_offset < max_offset {
+            self.event_scroll_offset += 1;
+        }
+    }
+
+    fn scroll_events_page_up(&mut self) {
+        self.event_scroll_offset = self.event_scroll_offset.saturating_sub(10);
+    }
+
+    fn scroll_events_page_down(&mut self) {
+        let events = self.simulation.state().get_events();
+        let max_offset = if events.len() > 10 {
+            events.len() - 10
+        } else {
+            0
+        };
+        
+        self.event_scroll_offset = (self.event_scroll_offset + 10).min(max_offset);
+    }
+
+    fn scroll_events_to_top(&mut self) {
+        self.event_scroll_offset = 0;
+    }
+
+    fn scroll_events_to_bottom(&mut self) {
+        let events = self.simulation.state().get_events();
+        let max_offset = if events.len() > 10 {
+            events.len() - 10
+        } else {
+            0
+        };
+        self.event_scroll_offset = max_offset;
     }
 
     fn cleanup(&mut self) -> Result<(), Box<dyn std::error::Error>> {
