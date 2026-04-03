@@ -24,6 +24,12 @@ pub struct State {
     pub reform_strength: f32, // Strength multiplier for reform effects
     // Phase transition tracking
     pub hardship_duration: u64, // Ticks of prolonged low happiness
+    // PERFORMANCE: Cached averages to avoid redundant calculations
+    cached_avg_ideology: f32,
+    cached_avg_happiness: f32,
+    cached_avg_trust: f32,
+    cached_avg_radicalization: f32,
+    cache_valid: bool,
 }
 
 impl Default for State {
@@ -75,6 +81,12 @@ impl State {
             reform_duration: 0,
             reform_strength: 0.0,
             hardship_duration: 0,
+            // PERFORMANCE: Initialize cache
+            cached_avg_ideology: 0.0,
+            cached_avg_happiness: 0.0,
+            cached_avg_trust: 0.0,
+            cached_avg_radicalization: 0.0,
+            cache_valid: false,
         }
     }
 
@@ -120,6 +132,12 @@ impl State {
             reform_duration: 0,
             reform_strength: 0.0,
             hardship_duration: 0,
+            // PERFORMANCE: Initialize cache
+            cached_avg_ideology: 0.0,
+            cached_avg_happiness: 0.0,
+            cached_avg_trust: 0.0,
+            cached_avg_radicalization: 0.0,
+            cache_valid: false,
         }
     }
 
@@ -192,7 +210,40 @@ impl State {
         &self.events
     }
 
-    pub fn get_average_ideology(&self) -> f32 {
+    // PERFORMANCE: Cache management methods
+    pub fn invalidate_cache(&mut self) {
+        self.cache_valid = false;
+    }
+    
+    fn update_cache(&mut self) {
+        if self.citizens.is_empty() {
+            self.cached_avg_ideology = 0.0;
+            self.cached_avg_happiness = 0.0;
+            self.cached_avg_trust = 0.0;
+            self.cached_avg_radicalization = 0.0;
+        } else {
+            let count = self.citizens.len() as f32;
+            self.cached_avg_ideology = self.citizens.iter().map(|c| c.ideology).sum::<f32>() / count;
+            self.cached_avg_happiness = self.citizens.iter().map(|c| c.happiness).sum::<f32>() / count;
+            self.cached_avg_trust = self.citizens.iter().map(|c| c.trust_in_government).sum::<f32>() / count;
+            self.cached_avg_radicalization = self.citizens.iter().map(|c| c.radicalization).sum::<f32>() / count;
+        }
+        self.cache_valid = true;
+    }
+    
+    fn ensure_cache_valid(&mut self) {
+        if !self.cache_valid {
+            self.update_cache();
+        }
+    }
+
+    pub fn get_average_ideology(&mut self) -> f32 {
+        self.ensure_cache_valid();
+        self.cached_avg_ideology
+    }
+    
+    // IMMUTABLE VERSION for UI/read-only access (calculates on demand)
+    pub fn get_average_ideology_immutable(&self) -> f32 {
         if self.citizens.is_empty() {
             0.0
         } else {
@@ -200,7 +251,13 @@ impl State {
         }
     }
 
-    pub fn get_average_happiness(&self) -> f32 {
+    pub fn get_average_happiness(&mut self) -> f32 {
+        self.ensure_cache_valid();
+        self.cached_avg_happiness
+    }
+    
+    // IMMUTABLE VERSION for UI/read-only access (calculates on demand)
+    pub fn get_average_happiness_immutable(&self) -> f32 {
         if self.citizens.is_empty() {
             0.0
         } else {
@@ -208,7 +265,13 @@ impl State {
         }
     }
 
-    pub fn get_average_trust(&self) -> f32 {
+    pub fn get_average_trust(&mut self) -> f32 {
+        self.ensure_cache_valid();
+        self.cached_avg_trust
+    }
+    
+    // IMMUTABLE VERSION for UI/read-only access (calculates on demand)
+    pub fn get_average_trust_immutable(&self) -> f32 {
         if self.citizens.is_empty() {
             0.0
         } else {
@@ -216,7 +279,13 @@ impl State {
         }
     }
 
-    pub fn get_average_radicalization(&self) -> f32 {
+    pub fn get_average_radicalization(&mut self) -> f32 {
+        self.ensure_cache_valid();
+        self.cached_avg_radicalization
+    }
+    
+    // IMMUTABLE VERSION for UI/read-only access (calculates on demand)
+    pub fn get_average_radicalization_immutable(&self) -> f32 {
         if self.citizens.is_empty() {
             0.0
         } else {
@@ -263,6 +332,12 @@ struct SerializableState {
     reform_duration: u64,
     reform_strength: f32,
     hardship_duration: u64,
+    // PERFORMANCE: Include cache fields in serialization
+    cached_avg_ideology: f32,
+    cached_avg_happiness: f32,
+    cached_avg_trust: f32,
+    cached_avg_radicalization: f32,
+    cache_valid: bool,
 }
 
 impl From<&State> for SerializableState {
@@ -282,6 +357,12 @@ impl From<&State> for SerializableState {
             reform_duration: state.reform_duration,
             reform_strength: state.reform_strength,
             hardship_duration: state.hardship_duration,
+            // PERFORMANCE: Include cache fields in serialization
+            cached_avg_ideology: state.cached_avg_ideology,
+            cached_avg_happiness: state.cached_avg_happiness,
+            cached_avg_trust: state.cached_avg_trust,
+            cached_avg_radicalization: state.cached_avg_radicalization,
+            cache_valid: state.cache_valid,
         }
     }
 }
@@ -305,6 +386,12 @@ impl From<SerializableState> for State {
             reform_duration: serializable.reform_duration,
             reform_strength: serializable.reform_strength,
             hardship_duration: 0, // Reset on deserialize
+            // PERFORMANCE: Include cache fields in deserialization
+            cached_avg_ideology: serializable.cached_avg_ideology,
+            cached_avg_happiness: serializable.cached_avg_happiness,
+            cached_avg_trust: serializable.cached_avg_trust,
+            cached_avg_radicalization: serializable.cached_avg_radicalization,
+            cache_valid: false, // Invalidate cache on deserialize
         }
     }
 }

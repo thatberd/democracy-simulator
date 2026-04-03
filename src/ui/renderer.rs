@@ -72,15 +72,15 @@ impl UIRenderer {
             ]),
             Line::from(vec![
                 Span::styled("Avg Ideology:", Style::default().fg(Color::Gray)),
-                Span::raw(format!(" {:.3}", state.get_average_ideology())),
+                Span::raw(format!(" {:.3}", state.get_average_ideology_immutable())),
             ]),
             Line::from(vec![
                 Span::styled("Avg Happiness:", Style::default().fg(Color::Gray)),
-                Span::raw(format!(" {:.3}", state.get_average_happiness())),
+                Span::raw(format!(" {:.3}", state.get_average_happiness_immutable())),
             ]),
             Line::from(vec![
                 Span::styled("Avg Trust:", Style::default().fg(Color::Gray)),
-                Span::raw(format!(" {:.3}", state.get_average_trust())),
+                Span::raw(format!(" {:.3}", state.get_average_trust_immutable())),
             ]),
             Line::from(vec![
                 Span::styled("Gov Ideology:", Style::default().fg(Color::Gray)),

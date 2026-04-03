@@ -54,6 +54,9 @@ impl Simulation {
             return;
         }
 
+        // PERFORMANCE: Invalidate cache at start of tick since citizens will change
+        self.state.invalidate_cache();
+        
         let prev_avg_happiness = self.state.get_average_happiness();
         let prev_gdp = self.state.economy.gdp;
 
@@ -104,21 +107,53 @@ impl Simulation {
             citizen.update_ideology_local(local_averages[i], noise, chaos, happiness_drift);
         }
 
-        // Add echo chamber citizen interactions
-        let interaction_count = (self.state.citizens.len() / 2).max(10); // population size / 2, min 10
+        // Add echo chamber citizen interactions - OPTIMIZED  
+        let citizen_count = self.state.citizens.len();
+        let interaction_count = (citizen_count as f32).sqrt() as usize; // O(sqrt(n)) instead of O(n)
+        let interaction_count = interaction_count.max(5).min(50); // Reasonable bounds
+        
+        // Collect interaction pairs first to avoid borrowing issues
+        let mut interaction_pairs = Vec::with_capacity(interaction_count);
         for _ in 0..interaction_count {
-            let a_idx = self.state.rng.gen_range(0..self.state.citizens.len());
-            let b_idx = self.state.rng.gen_range(0..self.state.citizens.len());
-            
+            let a_idx = self.state.rng.gen_range(0..citizen_count);
+            let b_idx = self.state.rng.gen_range(0..citizen_count);
             if a_idx != b_idx {
-                // Clone citizen data for interaction to avoid borrowing issues
-                let citizen_b_clone = self.state.citizens[b_idx].clone();
-                let citizen_a_clone = self.state.citizens[a_idx].clone();
-                
-                // Use the new echo chamber interaction method
-                self.state.citizens[a_idx].interact_with(&citizen_b_clone);
-                self.state.citizens[b_idx].interact_with(&citizen_a_clone);
+                interaction_pairs.push((a_idx, b_idx));
             }
+        }
+        
+        // Apply interactions using a simpler approach that avoids borrowing conflicts
+        for (a_idx, b_idx) in interaction_pairs {
+            // Store ideologies before interaction
+            let a_ideology = self.state.citizens[a_idx].ideology;
+            let b_ideology = self.state.citizens[b_idx].ideology;
+            
+            // Apply interaction effects directly using the stored values
+            let ideology_diff = b_ideology - a_ideology;
+            let distance = ideology_diff.abs();
+            let similarity = 1.0 - distance;
+            
+            // Echo chamber: similar groups reinforce internally, opposing groups stop blending
+            let base_strength = 0.02;
+            let echo_chamber_multiplier = if similarity > 0.7 {
+                2.0 // Strong reinforcement within echo chambers
+            } else if similarity < 0.3 {
+                0.2 // Weak influence across opposing groups
+            } else {
+                1.0 // Normal influence for moderate similarity
+            };
+            
+            // Distance-based decay still applies but is modified by echo chamber
+            let distance_factor = (-distance * 3.0).exp();
+            let influence = ideology_diff * base_strength * distance_factor * echo_chamber_multiplier;
+            
+            // Apply influence with saturation to both citizens
+            self.state.citizens[a_idx].ideology += influence.tanh() * 0.1;
+            self.state.citizens[b_idx].ideology -= influence.tanh() * 0.1; // Opposite effect
+            
+            // Clamp values
+            self.state.citizens[a_idx].ideology = self.state.citizens[a_idx].ideology.clamp(-1.0, 1.0);
+            self.state.citizens[b_idx].ideology = self.state.citizens[b_idx].ideology.clamp(-1.0, 1.0);
         }
 
         // Update citizen happiness
