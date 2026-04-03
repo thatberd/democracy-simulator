@@ -4,11 +4,12 @@ use ratatui::{
 };
 use std::io;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use crate::engine::Simulation;
+use crate::config::SimConfig;
 use super::renderer::UIRenderer;
 
 pub struct App {
@@ -35,15 +36,34 @@ impl App {
         })
     }
 
+    pub fn new_with_config(seed: u64, config: SimConfig) -> Result<Self, Box<dyn std::error::Error>> {
+        // Setup terminal
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let terminal = Terminal::new(backend)?;
+
+        Ok(Self {
+            simulation: Simulation::new_with_config(seed, config),
+            terminal,
+            should_quit: false,
+            event_scroll_offset: 0,
+        })
+    }
+
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut last_tick = std::time::Instant::now();
         let tick_duration = std::time::Duration::from_millis(100); // 10 FPS
 
         loop {
-            // Handle input
-            while event::poll(std::time::Duration::from_millis(0))? {
+            // Handle input with single event read
+            if event::poll(std::time::Duration::from_millis(10))? {
                 if let Event::Key(key) = event::read()? {
-                    self.handle_key_event(key);
+                    // Only process key press events, not release events (fixes Windows double input)
+                    if key.kind == KeyEventKind::Press {
+                        self.handle_key_event(key);
+                    }
                 }
             }
 

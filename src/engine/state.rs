@@ -2,6 +2,7 @@ use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use crate::engine::{Citizen, Economy, Government};
+use crate::config::SimConfig;
 
 #[derive(Debug, Clone)]
 pub struct State {
@@ -52,6 +53,51 @@ impl State {
         let gdp = rng.gen_range(0.8..1.2);
         let unemployment = rng.gen_range(0.05..0.15);
         let inequality = rng.gen_range(0.2..0.5);
+        let economy = Economy::new(gdp, unemployment, inequality);
+        
+        // Initialize government with average citizen ideology
+        let avg_ideology = citizens.iter().map(|c| c.ideology).sum::<f32>() / citizens.len() as f32;
+        let government = Government::new(avg_ideology, 50);
+        
+        Self {
+            citizens,
+            economy,
+            government,
+            tick: 0,
+            seed,
+            rng,
+            events: Vec::new(),
+            last_protest_tick: 0,
+            last_reform_tick: 0,
+            last_crisis_tick: 0,
+            protest_history: vec![false; 20], // Track last 20 ticks for fatigue
+            reform_active: false,
+            reform_duration: 0,
+            reform_strength: 0.0,
+            hardship_duration: 0,
+        }
+    }
+
+    pub fn new_with_config(seed: u64, config: SimConfig) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
+        
+        // Generate citizens using config
+        let citizen_count = config.citizens as usize;
+        let mut citizens = Vec::with_capacity(citizen_count);
+        
+        for _ in 0..citizen_count {
+            // Normal distribution around 0 with variance
+            let ideology = Self::normal_distribution(&mut rng, 0.0, 0.3).clamp(-1.0, 1.0);
+            let happiness = rng.gen_range(0.3..0.8);
+            let trust = rng.gen_range(config.trust_f32() * 0.7..config.trust_f32() * 1.3).clamp(0.0, 1.0);
+            
+            citizens.push(Citizen::new(ideology, happiness, trust));
+        }
+        
+        // Initialize economy using config
+        let gdp = rng.gen_range(0.8..1.2);
+        let unemployment = rng.gen_range(0.05..0.15);
+        let inequality = config.inequality_f32();
         let economy = Economy::new(gdp, unemployment, inequality);
         
         // Initialize government with average citizen ideology

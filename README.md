@@ -45,22 +45,87 @@ cd democracy-simulator
 # Build the project
 cargo build --release
 
-# Run with a specific seed
-cargo run --release 12345
+# Run with interactive configuration
+cargo run --release --interactive
 
-# Run with random seed
-cargo run --release
+# Run with preset configuration
+cargo run --release --preset collapse --seed 12345
+
+# Run with custom parameters
+cargo run --release --citizens 1500 --inequality 0.8 --trust 0.2 --volatility 0.7
 ```
 
 ## Usage
 
-### Command Line Arguments
+### Command Line Interface
+
+The democracy simulator now supports a rich CLI interface with multiple configuration options:
 
 ```bash
-cargo run -- [SEED]
+cargo run -- [OPTIONS]
 ```
 
-- `SEED`: Optional u64 number to seed the simulation. If omitted, a random seed is used.
+#### Options
+
+- `--seed <SEED>`: Random seed for deterministic simulation
+- `--citizens <CITIZENS>`: Number of citizens (100-5000)
+- `--inequality <INEQUALITY>`: Initial inequality (0.0-1.0)
+- `--trust <TRUST>`: Initial trust (0.0-1.0)
+- `--volatility <VOLATILITY>`: Economic volatility (0.0-1.0)
+- `--preset <PRESET>`: Preset configuration (`collapse`, `stable`)
+- `--interactive`: Launch interactive TUI configuration mode
+
+#### Presets
+
+- **collapse**: High inequality (0.8), low trust (0.1), high volatility (0.7), 1500 citizens
+- **stable**: Balanced inequality (0.3), high trust (0.7), low volatility (0.2), 1200 citizens
+
+#### Priority Logic
+
+1. `--interactive`: Launch TUI setup screen (overrides other options)
+2. `--preset`: Load preset configuration
+3. Individual parameters: Override preset values
+4. Defaults: Used if no options provided
+
+### Interactive Configuration Mode
+
+Launch with `--interactive` to configure parameters in a TUI before simulation starts:
+
+**Controls:**
+- **↑/↓**: Select field
+- **Enter**: Edit selected field
+- **Tab**: Next field
+- **Backspace**: Delete character
+- **s**: Start simulation
+- **q**: Quit
+
+**Fields:**
+- Citizens (100-5000)
+- Inequality (0.0-1.0)
+- Trust (0.0-1.0)
+- Volatility (0.0-1.0)
+
+### Deterministic Seed Generation
+
+The simulator uses config-driven seed generation:
+
+- Configuration parameters are hashed to create deterministic seeds
+- Same configuration always produces the same seed
+- Manual `--seed` overrides automatic generation
+- Ensures reproducible scenarios across different systems
+
+#### Examples
+
+```bash
+# Interactive mode with preset starting point
+cargo run -- --interactive --preset stable
+
+# Custom scenario with deterministic seed
+cargo run -- --citizens 2000 --inequality 0.6 --trust 0.3 --seed 42
+
+# Reproduce collapse scenario
+cargo run -- --preset collapse --seed 99999
+```
 
 ### Controls
 
@@ -203,6 +268,7 @@ The terminal interface displays:
 ```
 src/
 ├── main.rs           # Entry point and CLI handling
+├── config.rs         # Configuration structs and CLI interface
 ├── engine/           # Simulation engine (deterministic, no UI)
 │   ├── mod.rs
 │   ├── citizen.rs    # Citizen model and behavior
@@ -213,6 +279,7 @@ src/
 └── ui/               # Terminal user interface
     ├── mod.rs
     ├── app.rs        # Main application and event handling
+    ├── config_screen.rs # Interactive TUI configuration
     └── renderer.rs   # TUI rendering logic
 ```
 

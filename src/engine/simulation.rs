@@ -1,4 +1,5 @@
 use crate::engine::State;
+use crate::config::SimConfig;
 use rand::Rng;
 
 pub struct Simulation {
@@ -10,6 +11,13 @@ impl Simulation {
     pub fn new(seed: u64) -> Self {
         Self {
             state: State::new(seed),
+            paused: false,
+        }
+    }
+
+    pub fn new_with_config(seed: u64, config: SimConfig) -> Self {
+        Self {
+            state: State::new_with_config(seed, config),
             paused: false,
         }
     }
