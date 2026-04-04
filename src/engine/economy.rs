@@ -27,6 +27,37 @@ impl Economy {
         }
     }
 
+    /// Updates economy based on government ideology and random factors.
+    /// 
+    /// This implements a complex economic model with lag effects, crisis multipliers,
+    /// and nonlinear dynamics that create realistic boom/bust cycles.
+    /// 
+    /// # Parameters:
+    /// - `government_ideology`: Current ruling ideology (-1.0 to 1.0)
+    /// - `random_drift`: Random economic shocks and variations
+    /// 
+    /// # Economic Model Components:
+    /// 
+    /// ## 1. Ideological Effects
+    /// - **GDP**: Left-leaning governments reduce inequality drag on growth
+    /// - **Unemployment**: Extreme ideologies (both left and right) increase unemployment
+    /// - **Inequality**: Right-wing governments increase inequality, amplified by GDP
+    /// 
+    /// ## 2. Lag Effects
+    /// Previous economic trends influence current changes (momentum).
+    /// Growth trend uses exponential smoothing (0.8 * previous + 0.2 * current).
+    /// 
+    /// ## 3. Crisis Multiplier
+    /// When unemployment > 0.4 OR inequality > 0.7, all changes are 2x amplified.
+    /// Models how crises accelerate economic instability.
+    /// 
+    /// ## 4. Nonlinear Saturation
+    /// Uses tanh() to prevent unrealistic extreme changes.
+    /// Ensures economic values remain within reasonable bounds.
+    /// 
+    /// ## 5. Policy Lag Integration
+    /// Economy responds to government ideology from 10 ticks ago.
+    /// Models delayed implementation of economic policies.
     pub fn update(&mut self, government_ideology: f32, random_drift: f32) {
         // Store previous values for lag effects
         self.previous_gdp = self.gdp;

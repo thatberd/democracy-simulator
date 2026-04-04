@@ -4,6 +4,9 @@ pub mod government;
 pub mod state;
 pub mod simulation;
 
+#[cfg(test)]
+mod tests;
+
 pub use citizen::*;
 pub use economy::*;
 pub use government::*;

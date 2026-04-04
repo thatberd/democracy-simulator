@@ -3,12 +3,13 @@ use ratatui::{
     Terminal,
 };
 use std::io;
+use std::path::PathBuf;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crate::engine::Simulation;
+use crate::engine::{Simulation, State};
 use crate::config::SimConfig;
 use super::renderer::UIRenderer;
 
@@ -17,6 +18,7 @@ pub struct App {
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
     should_quit: bool,
     event_scroll_offset: usize,
+    auto_save_path: Option<PathBuf>,
 }
 
 impl App {
@@ -33,6 +35,7 @@ impl App {
             terminal,
             should_quit: false,
             event_scroll_offset: 0,
+            auto_save_path: None,
         })
     }
 
@@ -49,7 +52,41 @@ impl App {
             terminal,
             should_quit: false,
             event_scroll_offset: 0,
+            auto_save_path: None,
         })
+    }
+
+    /// Create a new App with an existing state (for loading saved simulations)
+    pub fn new_with_state(state: State) -> Result<Self, Box<dyn std::error::Error>> {
+        // Setup terminal
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let terminal = Terminal::new(backend)?;
+
+        // Create simulation from state
+        let simulation = Simulation::from_state(state);
+
+        Ok(Self {
+            simulation,
+            terminal,
+            should_quit: false,
+            event_scroll_offset: 0,
+            auto_save_path: None,
+        })
+    }
+
+    /// Set auto-save path for periodic saving
+    pub fn set_auto_save_path(&mut self, path: String) {
+        self.auto_save_path = Some(PathBuf::from(path));
+    }
+
+    /// Save current simulation state to file
+    pub fn save_state(&self, path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+        let serialized = self.simulation.state().serialize_state()?;
+        std::fs::write(path, serialized)?;
+        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {

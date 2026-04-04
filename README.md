@@ -20,6 +20,10 @@ A terminal-based autonomous democracy simulation built in Rust. The simulation r
 - **Anti-Equilibrium Mechanisms**: Multiple systems prevent permanent static states
 - **Persistent Reform Effects**: 30-tick reform duration with gradual decay
 - **Instability Pressure**: Event probabilities scale with system health (1.0-2.0x)
+- **Save/Load System**: Save and restore complete simulation state at any time
+- **Configuration Validation**: Prevents invalid parameter combinations
+- **Comprehensive Testing**: Extensive test suite with property-based validation
+- **Enhanced Documentation**: Detailed algorithm explanations and performance notes
 
 ## Technical Details
 
@@ -53,6 +57,16 @@ cargo run --release --preset collapse --seed 12345
 
 # Run with custom parameters
 cargo run --release --citizens 1500 --inequality 0.8 --trust 0.2 --volatility 0.7
+
+# Save simulation state
+cargo run --release --save my_simulation.json --seed 12345
+
+# Load and continue saved simulation
+cargo run --release --load my_simulation.json
+
+# Test new presets
+cargo run --release --preset utopia --seed 42
+cargo run --release --preset revolution --seed 999
 ```
 
 ## Usage
@@ -72,13 +86,19 @@ cargo run -- [OPTIONS]
 - `--inequality <INEQUALITY>`: Initial inequality (0.0-1.0)
 - `--trust <TRUST>`: Initial trust (0.0-1.0)
 - `--volatility <VOLATILITY>`: Economic volatility (0.0-1.0)
-- `--preset <PRESET>`: Preset configuration (`collapse`, `stable`)
+- `--preset <PRESET>`: Preset configuration (`collapse`, `stable`, `polarized`, `utopia`, `dystopia`, `revolution`)
 - `--interactive`: Launch interactive TUI configuration mode
+- `--save <PATH>`: Save simulation state to file on exit
+- `--load <PATH>`: Load simulation state from file
 
 #### Presets
 
 - **collapse**: High inequality (0.8), low trust (0.1), high volatility (0.7), 1500 citizens
 - **stable**: Balanced inequality (0.3), high trust (0.7), low volatility (0.2), 1200 citizens
+- **polarized**: High population (2000), moderate inequality (0.6), moderate trust (0.4), medium volatility (0.5)
+- **utopia**: Low inequality (0.1), high trust (0.9), low volatility (0.1), 800 citizens
+- **dystopia**: Extreme inequality (0.9), very low trust (0.05), high volatility (0.8), 3000 citizens
+- **revolution**: High inequality (0.75), low trust (0.15), high volatility (0.6), 1800 citizens
 
 #### Priority Logic
 
@@ -275,13 +295,56 @@ src/
 │   ├── economy.rs    # Economic model
 │   ├── government.rs # Government and elections
 │   ├── state.rs      # World state and RNG management
-│   └── simulation.rs # Main simulation loop
+│   ├── simulation.rs # Main simulation loop
+│   └── tests.rs      # Comprehensive test suite
 └── ui/               # Terminal user interface
     ├── mod.rs
     ├── app.rs        # Main application and event handling
     ├── config_screen.rs # Interactive TUI configuration
     └── renderer.rs   # TUI rendering logic
 ```
+
+## Testing
+
+The democracy simulator includes a comprehensive test suite to ensure reliability and correctness:
+
+```bash
+# Run all tests
+cargo test
+
+# Run tests with output
+cargo test -- --nocapture
+
+# Run specific test modules
+cargo test citizen_tests
+cargo test economy_tests
+cargo test integration_tests
+```
+
+### Test Coverage
+
+- **Unit Tests**: Individual component testing (citizens, economy, government, state)
+- **Integration Tests**: Full simulation workflow testing
+- **Property-Based Tests**: Edge case validation using `proptest`
+- **Determinism Tests**: Verify same seeds produce identical results
+- **Serialization Tests**: Save/load functionality validation
+- **Long-Running Tests**: Stability over thousands of ticks
+
+### Configuration Validation
+
+The simulator validates all configurations before starting:
+
+```bash
+# This will show validation errors
+cargo run -- --citizens 50  # Too few citizens
+cargo run -- --inequality 1.5  # Invalid range
+```
+
+Validation checks include:
+- Citizen count bounds (100-5000)
+- Parameter ranges (0.0-1.0 for scaled values)
+- Logical consistency between parameters
+- Prevention of unrealistic scenario combinations
 
 ## Testing Determinism
 

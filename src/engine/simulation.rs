@@ -22,6 +22,14 @@ impl Simulation {
         }
     }
 
+    /// Create a simulation from an existing state (for loading saved simulations)
+    pub fn from_state(state: State) -> Self {
+        Self {
+            state,
+            paused: false,
+        }
+    }
+
     fn compute_local_ideology(&mut self, citizen_idx: usize, sample_size: usize) -> f32 {
         if self.state.citizens.len() <= 1 {
             return 0.0;
@@ -49,6 +57,62 @@ impl Simulation {
         }
     }
 
+    /// Executes one simulation tick (100ms of simulated time).
+    /// 
+    /// This is the main simulation loop that coordinates all subsystems:
+    /// citizen interactions, economic updates, government actions, and social events.
+    /// 
+    /// # Simulation Pipeline:
+    /// 
+    /// ## 1. Cache Invalidation
+    /// Clears cached averages since citizen values will change.
+    /// 
+    /// ## 2. Local Interaction Computation
+    /// - Each citizen samples 3-8 random neighbors
+    /// - Pre-computes local ideology averages for efficiency
+    /// - O(n) complexity with no O(n²) pairwise operations
+    /// 
+    /// ## 3. Citizen Updates
+    /// For each citizen:
+    /// - **Trust-based chaos**: Low trust (<0.2) adds random instability
+    /// - **Escalation effects**: Long hardship amplifies chaos (up to 2.25x)
+    /// - **Happiness drift**: Unhappy citizens (<0.2) experience ideological movement
+    /// - **Local influence**: Based on neighbors' average ideology
+    /// - **Repulsion**: Push away from very different neighbors
+    /// - **Memory updates**: Store past values for trend analysis
+    /// 
+    /// ## 4. Social Dynamics
+    /// - **Economic coupling**: Economy affects happiness with stronger feedback
+    /// - **Trust dynamics**: Memory-based trend amplification
+    /// - **Radicalization**: Increases with extremeness and low trust
+    /// - **Inequality effects**: High inequality drives polarization
+    /// - **Natural stabilization**: Very slow recovery prevents deadlock
+    /// 
+    /// ## 5. Economic Updates
+    /// - **Policy lag**: Responds to government ideology from 10 ticks ago
+    /// - **Crisis multipliers**: Amplified changes during economic crises
+    /// - **Nonlinear dynamics**: Saturated changes using tanh()
+    /// 
+    /// ## 6. Government Updates
+    /// - **Term countdown**: Decrements remaining term
+    /// - **Policy queue**: Updates lagged ideology history
+    /// - **Inertia**: Smooths ideological transitions
+    /// 
+    /// ## 7. Social Events
+    /// - **Protests**: Triggered by low trust + low happiness
+    /// - **Reforms**: Recovery movements from extreme conditions
+    /// - **Crises**: Random economic disruptions
+    /// - **Harmony**: Positive events in stable societies
+    /// - **Instability scaling**: Event probabilities scale with system health
+    /// 
+    /// ## 8. Hardship Tracking
+    /// Updates duration of prolonged low happiness periods.
+    /// 
+    /// # Performance Notes:
+    /// - Uses vectorized operations for efficiency
+    /// - Local sampling prevents O(n²) complexity
+    /// - Cached averages invalidated only when necessary
+    /// - Suitable for 500-5000 citizens at 10 FPS
     pub fn tick(&mut self) {
         if self.paused {
             return;

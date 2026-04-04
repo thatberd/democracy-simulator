@@ -77,6 +77,41 @@ impl Citizen {
         self.ideology = self.ideology.clamp(-1.0, 1.0);
     }
 
+    /// Updates citizen ideology based on local social interactions and individual factors.
+    /// 
+    /// This is the core ideological dynamics function that combines multiple influences:
+    /// 
+    /// # Parameters
+    /// - `local_avg_ideology`: Average ideology of sampled neighbors (-1.0 to 1.0)
+    /// - `noise`: Random perturbation for individual variation
+    /// - `chaos`: Additional instability factor when trust is low
+    /// - `happiness_drift`: Ideological movement driven by unhappiness
+    /// 
+    /// # Algorithm Components:
+    /// 
+    /// ## 1. Trust-Based Social Influence
+    /// Low trust increases susceptibility to peer influence (trust_factor = 1.0 - trust).
+    /// This models how distrust in institutions drives people toward social groups.
+    /// 
+    /// ## 2. Happiness-Driven Susceptibility  
+    /// Unhappy citizens (happiness < 0.3) are 50% more susceptible to influence.
+    /// This models how dissatisfaction drives ideological change.
+    /// 
+    /// ## 3. Nonlinear Saturation
+    /// Uses tanh() to saturate influence at extreme ideological differences.
+    /// Prevents unrealistic jumps when neighbors are very different.
+    /// 
+    /// ## 4. Ideological Repulsion
+    /// When distance > 0.5, citizens are pushed further away from local average.
+    /// This creates polarization and prevents complete homogenization.
+    /// 
+    /// ## 5. Chaos Factor
+    /// Additional randomness when trust < 0.2, scaled by hardship duration.
+    /// Models unpredictable behavior in low-trust environments.
+    /// 
+    /// ## 6. Happiness-Driven Drift
+    /// Unhappy citizens experience random ideological movement (30% chance per tick).
+    /// Breaks static equilibrium and models how misery drives change.
     pub fn update_ideology_local(&mut self, local_avg_ideology: f32, noise: f32, chaos: f32, happiness_drift: f32) {
         // Store previous value for change tracking
         self.previous_ideology = self.ideology;
