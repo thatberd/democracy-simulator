@@ -48,7 +48,8 @@ impl UIRenderer {
         ];
 
         let header = Paragraph::new(header_text)
-            .block(Block::default().borders(Borders::ALL).title("Header"))
+            .block(Block::default().borders(Borders::ALL).title("Header")
+                .border_type(ratatui::widgets::BorderType::Rounded))
             .style(Style::default().fg(Color::White))
             .wrap(Wrap { trim: true });
 
@@ -93,7 +94,8 @@ impl UIRenderer {
         ];
 
         let stats_para = Paragraph::new(stats_text)
-            .block(Block::default().borders(Borders::ALL).title("Statistics"))
+            .block(Block::default().borders(Borders::ALL).title("Statistics")
+                .border_type(ratatui::widgets::BorderType::Rounded))
             .style(Style::default().fg(Color::White));
 
         f.render_widget(stats_para, stats_chunks[0]);
@@ -124,7 +126,8 @@ impl UIRenderer {
         ];
 
         let economy_para = Paragraph::new(economy_text)
-            .block(Block::default().borders(Borders::ALL).title("Economy"))
+            .block(Block::default().borders(Borders::ALL).title("Economy")
+                .border_type(ratatui::widgets::BorderType::Rounded))
             .style(Style::default().fg(Color::White));
 
         f.render_widget(economy_para, right_chunks[0]);
@@ -135,7 +138,8 @@ impl UIRenderer {
         let max_count = *distribution.iter().max().unwrap_or(&1) as u64;
         
         let sparkline = Sparkline::default()
-            .block(Block::default().borders(Borders::ALL).title("Ideology Distribution"))
+            .block(Block::default().borders(Borders::ALL).title("Ideology Distribution")
+                .border_type(ratatui::widgets::BorderType::Rounded))
             .data(&distribution_u64)
             .max(max_count)
             .style(Style::default().fg(Color::Blue));
@@ -148,7 +152,8 @@ impl UIRenderer {
         
         if events.is_empty() {
             let no_events = Paragraph::new("No events yet...")
-                .block(Block::default().borders(Borders::ALL).title("Event Log"))
+                .block(Block::default().borders(Borders::ALL).title("Event Log")
+                    .border_type(ratatui::widgets::BorderType::Rounded))
                 .style(Style::default().fg(Color::Gray));
             f.render_widget(no_events, area);
             return;
@@ -170,7 +175,8 @@ impl UIRenderer {
 
         let events_list = List::new(event_items)
             .block(Block::default().borders(Borders::ALL).title(format!("Event Log ({}-{} of {})", 
-                start_idx + 1, end_idx, events.len())))
+                start_idx + 1, end_idx, events.len()))
+                .border_type(ratatui::widgets::BorderType::Rounded))
             .style(Style::default().fg(Color::White));
 
         f.render_widget(events_list, area);
@@ -203,11 +209,23 @@ impl UIRenderer {
                 Span::raw(": page  "),
                 Span::styled("Home/End", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
                 Span::raw(": top/bottom"),
+            ]),
+            Line::from(vec![
+                Span::styled("Mouse: ", Style::default().fg(Color::Gray)),
+                Span::styled("Scroll", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+                Span::raw(": events  "),
+                Span::styled("Left Click", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+                Span::raw(": navigate/pause  "),
+                Span::styled("Right Click", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+                Span::raw(": quit  "),
+                Span::styled("Middle Click", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+                Span::raw(": reset"),
             ])
         ];
 
         let controls_para = Paragraph::new(controls_text)
-            .block(Block::default().borders(Borders::ALL).title("Controls"))
+            .block(Block::default().borders(Borders::ALL).title("Controls")
+                .border_type(ratatui::widgets::BorderType::Rounded))
             .style(Style::default().fg(Color::White));
 
         f.render_widget(controls_para, area);

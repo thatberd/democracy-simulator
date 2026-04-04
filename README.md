@@ -6,6 +6,8 @@ A terminal-based autonomous democracy simulation built in Rust. The simulation r
 
 - **Deterministic Simulation**: Same seed always produces identical results
 - **Autonomous Operation**: No player input required after initialization
+- **Modern Terminal UI**: Beautiful rounded corners and intuitive interface
+- **Mouse Support**: Full mouse interaction with scrolling and clicking
 - **Real-time TUI**: Terminal-based interface with live statistics
 - **Complex Adaptive System**: Emergent polarization, clustering, tipping points, and social unrest
 - **Local Interactions**: Citizens influence neighbors, not global averages
@@ -149,15 +151,32 @@ cargo run -- --preset collapse --seed 99999
 
 ### Controls
 
+#### Keyboard Controls
+
 - **q**: Quit the simulator
 - **p**: Pause/Resume simulation
 - **r**: Reset with new random seed
 
-#### Event Log
+#### Event Log Navigation
 
-- **↑↓**: Scroll
-- **PgUp/PgDn**: Page
-- **Home/End**: Top/Bottom
+- **↑↓**: Scroll through events
+- **PgUp/PgDn**: Page up/down through events
+- **Home/End**: Jump to top/bottom of event log
+
+#### Mouse Controls
+
+- **Scroll Wheel**: Navigate through event log
+- **Left Click**: 
+  - Click in event area to jump to that position
+  - Click in controls area to pause/resume
+- **Right Click**: Quit the simulator
+- **Middle Click**: Reset simulation and scroll to top
+
+#### Visual Features
+
+- **Rounded Corners**: All UI blocks use rounded borders for a modern appearance
+- **Color-coded Information**: Different colors for different data types
+- **Real-time Updates**: Smooth 10 FPS updates with live statistics
 
 ## Simulation Model
 

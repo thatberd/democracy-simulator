@@ -5,7 +5,7 @@ use ratatui::{
 use std::io;
 use std::path::PathBuf;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseEvent, MouseEventKind, MouseButton},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -96,11 +96,17 @@ impl App {
         loop {
             // Handle input with single event read
             if event::poll(std::time::Duration::from_millis(10))? {
-                if let Event::Key(key) = event::read()? {
-                    // Only process key press events, not release events (fixes Windows double input)
-                    if key.kind == KeyEventKind::Press {
-                        self.handle_key_event(key);
+                match event::read()? {
+                    Event::Key(key) => {
+                        // Only process key press events, not release events (fixes Windows double input)
+                        if key.kind == KeyEventKind::Press {
+                            self.handle_key_event(key);
+                        }
                     }
+                    Event::Mouse(mouse) => {
+                        self.handle_mouse_event(mouse);
+                    }
+                    _ => {}
                 }
             }
 
@@ -134,6 +140,60 @@ impl App {
             KeyCode::Home => self.scroll_events_to_top(),
             KeyCode::End => self.scroll_events_to_bottom(),
             _ => {}
+        }
+    }
+
+    fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::ScrollUp => self.scroll_events_up(),
+            MouseEventKind::ScrollDown => self.scroll_events_down(),
+            MouseEventKind::Down(button) => {
+                // Handle mouse clicks based on position
+                self.handle_mouse_click(mouse.column, mouse.row, button);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_mouse_click(&mut self, x: u16, y: u16, button: MouseButton) {
+        // Get terminal size to determine click regions
+        let size = self.terminal.size().unwrap_or_default();
+        
+        // Define UI regions (approximate based on layout)
+        let header_height = 3;
+        let stats_height = 10;
+        let controls_height = 4;
+        let events_start = header_height + stats_height;
+        let events_end = size.height.saturating_sub(controls_height);
+        
+        match button {
+            MouseButton::Left => {
+                // Left click actions based on region
+                if y >= events_start && y < events_end {
+                    // Click in events area - scroll to that position
+                    let events = self.simulation.state().get_events();
+                    if !events.is_empty() {
+                        let click_position = (y - events_start) as usize;
+                        let target_offset = click_position.saturating_add(self.event_scroll_offset);
+                        let max_offset = events.len().saturating_sub(10);
+                        self.event_scroll_offset = target_offset.min(max_offset);
+                    }
+                } else if y >= size.height.saturating_sub(controls_height) {
+                    // Click in controls area - toggle pause
+                    self.simulation.toggle_pause();
+                }
+                // x coordinate could be used for more precise clicking in the future
+                let _ = x;
+            }
+            MouseButton::Right => {
+                // Right click to quit
+                self.should_quit = true;
+            }
+            MouseButton::Middle => {
+                // Middle click to reset
+                self.simulation.reset(None);
+                self.event_scroll_offset = 0;
+            }
         }
     }
 
