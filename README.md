@@ -1,6 +1,10 @@
 # Democracy Simulator
 
+<p align="center"><img src="assets/img/logo.svg" width="100" height="100"></p>
+
 A terminal-based autonomous democracy simulation built in Rust. The simulation runs entirely autonomously after initialization, with deterministic behavior driven by a numeric seed.
+
+<img src="assets/img/demo.gif"></p>
 
 ## Features
 
